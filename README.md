@@ -45,6 +45,10 @@ does the following:
 
 ## Instructions
 
+**Important:** Because the AWS CloudFormation stack name is used in the name of
+the S3 bucket, that stack name must only contain lowercase letters. Please use
+lowercase letters when typing the stack name.
+
 Step 1 – Create an AWS CloudFormation Stack with Template One.
 
 Step 2 – Update Template One with Template Two (Update Stack).
