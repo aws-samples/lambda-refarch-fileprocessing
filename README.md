@@ -1,11 +1,8 @@
 # AWS Lambda Reference Architecture: Real-time File Processing
 
-The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) reference architecture is an general-purpose event-driven parallel data processing architecture that utilizes [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in the [Fanout S3 Event Notifications to
-Multiple
-Endpoints](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/) blog post and can be created with two AWS CloudFormation templates.
+The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) reference architecture is an general-purpose event-driven parallel data processing architecture that utilizes [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in the [Fanout S3 Event Notifications to Multiple Endpoints](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/) blog post and can be created with two AWS CloudFormation templates.
 
-[Template
-One](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
+[Template One](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
 does the following:
 
 -   Creates an Amazon Simple Storage Service (Amazon S3) bucket named event-manifold-bucket.
@@ -36,8 +33,7 @@ does the following:
 -   Creates two custom resources, each of which invoke the Add
     Permission Lambda function for data-processor-1 and data-processor-2.
 
-[Template
-Two](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing_update.template)
+[Template Two](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing_update.template)
 does the following:
 
 -   Configures the S3 bucket to send notifications to the
@@ -58,7 +54,9 @@ Step 3 – Navigate to the CloudWatch Logs tab.
 Step 4 – Upload a file to the event-manifold-bucket, for example by using the AWS
 Command Line Interface:
 
-**aws s3 cp &lt;some file&gt; s3://event-manifold-bucket**
+```bash
+$ aws s3 cp <some_file> s3://event-manifold-bucket
+```
 
 Step 5 – View the CloudWatch Log events for the data-processor-1 and
 data-processor-2 Lambda functions for evidence that both functions
