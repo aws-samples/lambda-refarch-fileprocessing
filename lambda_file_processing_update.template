@@ -177,6 +177,13 @@
                 "s3:GetObject"
               ],
               "Resource": { "Fn::Join" : [ "", [ "arn:aws:s3:::", {"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref" : "AWS::AccountId"} , "/*" ]] }
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject"
+              ],
+              "Resource": { "Fn::Join" : [ "", [ "arn:aws:s3:::", {"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref" : "AWS::AccountId"}, "-out" , "/*" ]] }
             }
           ]
         },
@@ -251,16 +258,7 @@
                   "logs:PutLogEvents"
                 ],
                 "Resource": "arn:aws:logs:*:*:*"
-  	    },
-        {
-                "Effect": "Allow",
-                "Action": [
-                  "s3:PutObject",
-                  "s3:GetObject",
-                  "s3:DeleteObject"
-                ],
-                "Resource": "arn:aws:s3:::*/*"
-        }]
+  	    }]
         },
         "Roles": [
           {
