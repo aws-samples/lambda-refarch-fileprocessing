@@ -18,6 +18,12 @@
         }
       }
     },
+    "S3BucketOut": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }, "-out"]]}
+      }
+    },
     "SNSTopic": {
       "Type": "AWS::SNS::Topic",
       "Properties": {
@@ -237,16 +243,24 @@
               ],
               "Resource": "arn:aws:lambda:*"
             },
-	    {
-              "Effect": "Allow",
-              "Action": [
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:PutLogEvents"
-              ],
-              "Resource": "arn:aws:logs:*:*:*"
-	    }
-          ]
+  	    {
+                "Effect": "Allow",
+                "Action": [
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents"
+                ],
+                "Resource": "arn:aws:logs:*:*:*"
+  	    },
+        {
+                "Effect": "Allow",
+                "Action": [
+                  "s3:PutObject",
+                  "s3:GetObject",
+                  "s3:DeleteObject"
+                ],
+                "Resource": "arn:aws:s3:::*/*"
+        }]
         },
         "Roles": [
           {
@@ -279,6 +293,12 @@
       "Description": "Storage location for data which is to be processed by Lambda functions",
       "Value": {
         "Ref": "S3Bucket"
+      }
+    },
+    "BucketOut": {
+      "Description": "Storage location for data which is to be processed by Lambda functions",
+      "Value": {
+        "Ref": "S3BucketOut"
       }
     },
     "Topic": {

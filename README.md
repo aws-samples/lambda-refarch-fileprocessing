@@ -5,7 +5,7 @@ The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-arc
 [Template One](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
 does the following:
 
--   Creates an Amazon Simple Storage Service (Amazon S3) bucket named event-manifold-bucket.
+-   Creates two Amazon Simple Storage Service (Amazon S3) buckets- one is a trigger bucket and the other one is for output.  Bucket names are generated when the CloudFormation stack is initiated.
 
 -   Creates an Amazon Simple Notification Service (Amazon SNS) topic named event-manifold-topic.
 
@@ -36,8 +36,7 @@ does the following:
 [Template Two](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing_update.template)
 does the following:
 
--   Configures the S3 bucket to send notifications to the
-    event-manifold-topic when objects are created.
+-   Configures the S3 bucket to send notifications to the trigger bucket when objects are created.
 
 ## Instructions
 
@@ -51,11 +50,11 @@ Step 2 – Update Template One with Template Two (Update Stack).
 
 Step 3 – Navigate to the CloudWatch Logs tab.
 
-Step 4 – Upload a file to the event-manifold-bucket, for example by using the AWS
+Step 4 – Upload a file to the trigger bucket, for example by using the AWS
 Command Line Interface:
 
 ```bash
-$ aws s3 cp <some_file> s3://event-manifold-bucket
+$ aws s3 cp <some_file> s3://demo-eventarchive-896781684848
 ```
 
 Step 5 – View the CloudWatch Log events for the data-processor-1 and
