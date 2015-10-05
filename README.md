@@ -6,8 +6,8 @@ The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-arc
 does the following:
 
 -   Creates two Amazon Simple Storage Service (Amazon S3) buckets with dynamically-generated names from CFN:
-    - Bucket 1 (`trigger-bucket`) is the trigger bucket that you put Markdown objects into.  It will have a name like *demo-eventarchive-896781684848*.
-    - Bucket 2 (`output-bucket`) is the output bucket, and is populated from the functions.  It will have a name like *demo-eventarchive-896781684848-out*.
+    - Bucket 1 (`trigger-bucket`) is where we'll be putting Markdown objects into.  It will have a name like *demo-eventarchive-896781684848*.
+    - Bucket 2 (`output-bucket`) is automatically  populated after the functions run.  It will have a name like *demo-eventarchive-896781684848-out*.
 
 
 -   Creates an Amazon Simple Notification Service (Amazon SNS) topic named `event-manifold-topic`.
