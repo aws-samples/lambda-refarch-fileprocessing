@@ -5,33 +5,29 @@ The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-arc
 [Template One](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
 does the following:
 
--   Creates two Amazon Simple Storage Service (Amazon S3) buckets- one is a trigger bucket and the other one is for output.  Bucket names are generated when the CloudFormation stack is initiated.
+-   Creates two Amazon Simple Storage Service (Amazon S3) buckets with dynamically-generated names from CFN:
+    - Bucket 1 is the trigger bucket that you put Markdown objects into.  It will have a name like *demo-eventarchive-896781684848*.
+    - Bucket 2 is the output bucket, and is populated from the functions.  It will have a name like *demo-eventarchive-896781684848-out*.
 
--   Creates an Amazon Simple Notification Service (Amazon SNS) topic named event-manifold-topic.
 
--   Creates an Amazon SNS topic policy which permits the S3 bucket to call the
-    Publish action on the topic.
+-   Creates an Amazon Simple Notification Service (Amazon SNS) topic named `event-manifold-topic`.
 
--   Creates a Lambda function named data-processor-1.
+-   Creates an Amazon SNS topic policy which permits the S3 bucket to call the `Publish` action on the topic.
 
--   Creates a Lambda function named data-processor-2.
+-   Creates a Lambda function named `data-processor-1`.
 
--   Creates an AWS Identity and Access Management (IAM) role and policy for data-processor-1 and data-processor-2 to assume when invoked. Permissions allow the
-    functions to write output to Amazon CloudWatch Logs and get objects from
-    the S3 bucket.
+-   Creates a Lambda function named `data-processor-2`.
+
+-   Creates an AWS Identity and Access Management (IAM) role and policy for `data-processor-1` and `data-processor-2` to assume when invoked. Permissions allow the functions to write output to Amazon CloudWatch Logs and get objects from the S3 bucket.
 
 -   Creates an Add Permission Lambda function to execute the
-    add-permission action on data-processor-1 and data-processor-2.
-    The function permits Amazon SNS to call the InvokeFunction action on
-    data-processor-1 and data-processor-2.
+    `add-permission` action on `data-processor-1` and `data-processor-2`.
+    The function permits Amazon SNS to call the `InvokeFunction` action on
+   `data-processor-1` and `data-processor-2`.
 
--   Creates an IAM role and policy for the Add Permission Lambda
-    function to assume when invoked. Permissions allow the function to
-    write output to CloudWatch Logs and execute add-permission on
-    Lambda functions.
+-   Creates an IAM role and policy for the `add-permission` Lambda function to assume when invoked. Permissions allow the function to write output to CloudWatch Logs and execute `add-permission` on Lambda functions.
 
--   Creates two custom resources, each of which invoke the Add
-    Permission Lambda function for data-processor-1 and data-processor-2.
+-   Creates two custom resources, each of which invoke the `add-permission` Lambda function for `data-processor-1` and `data-processor-2`.
 
 [Template Two](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing_update.template)
 does the following:
@@ -44,21 +40,22 @@ does the following:
 the S3 bucket, that stack name must only contain lowercase letters. Please use
 lowercase letters when typing the stack name.
 
-Step 1 – Create an AWS CloudFormation Stack with Template One.
 
-Step 2 – Update Template One with Template Two (Update Stack).
+**Step 1** – Create an AWS CloudFormation Stack with Template One.
 
-Step 3 – Navigate to the CloudWatch Logs tab.
+**Step 2** – Update Template One with Template Two (Update Stack).
 
-Step 4 – Upload a file to the trigger bucket, for example by using the AWS
+**Step 3** – Navigate to the CloudWatch Logs tab.
+
+**Step 4** – Upload a file to the trigger bucket, for example by using the AWS
 Command Line Interface:
 
 ```bash
-$ aws s3 cp <some_file> s3://demo-eventarchive-896781684848
+$ aws s3 cp <some_file> s3://trigger-bucket
 ```
 
-Step 5 – View the CloudWatch Log events for the data-processor-1 and
-data-processor-2 Lambda functions for evidence that both functions
+**Step 5** – View the CloudWatch Log events for the`data-processor-1`and
+`data-processor-2`Lambda functions for evidence that both functions
 received the Amazon SNS message of the Amazon S3 event.
 
 ## Worth Noting
