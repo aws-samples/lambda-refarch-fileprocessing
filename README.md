@@ -6,8 +6,8 @@ The [Real-time File Processing](https://s3.amazonaws.com/awslambda-reference-arc
 does the following:
 
 -   Creates two Amazon Simple Storage Service (Amazon S3) buckets with dynamically-generated names from CFN:
-    - Bucket 1 is the trigger bucket that you put Markdown objects into.  It will have a name like *demo-eventarchive-896781684848*.
-    - Bucket 2 is the output bucket, and is populated from the functions.  It will have a name like *demo-eventarchive-896781684848-out*.
+    - Bucket 1 (`trigger-bucket`) is the trigger bucket that you put Markdown objects into.  It will have a name like *demo-eventarchive-896781684848*.
+    - Bucket 2 (`output-bucket`) is the output bucket, and is populated from the functions.  It will have a name like *demo-eventarchive-896781684848-out*.
 
 
 -   Creates an Amazon Simple Notification Service (Amazon SNS) topic named `event-manifold-topic`.
@@ -18,7 +18,7 @@ does the following:
 
 -   Creates a Lambda function named `data-processor-2`.
 
--   Creates an AWS Identity and Access Management (IAM) role and policy for `data-processor-1` and `data-processor-2` to assume when invoked. Permissions allow the functions to write output to Amazon CloudWatch Logs and get objects from the S3 bucket.
+-   Creates an AWS Identity and Access Management (IAM) role and policy for `data-processor-1` and `data-processor-2` to assume when invoked. Permissions allow the functions to write their outputs to second S3 bucket.
 
 -   Creates an Add Permission Lambda function to execute the
     `add-permission` action on `data-processor-1` and `data-processor-2`.
@@ -36,36 +36,35 @@ does the following:
 
 ## Instructions
 
-**Important:** Because the AWS CloudFormation stack name is used in the name of
-the S3 bucket, that stack name must only contain lowercase letters. Please use
+**Important:** Because the AWS CloudFormation stack name is used in the name of the S3 buckets, that stack name must only contain lowercase letters. Please use
 lowercase letters when typing the stack name.
-
 
 **Step 1** – Create an AWS CloudFormation Stack with Template One.
 
 **Step 2** – Update Template One with Template Two (Update Stack).
 
-**Step 3** – Navigate to the CloudWatch Logs tab.
-
-**Step 4** – Upload a file to the trigger bucket, for example by using the AWS
+**Step 3** – Upload a file to the trigger bucket, for example by using the AWS
 Command Line Interface:
 
 ```bash
 $ aws s3 cp <some_file> s3://trigger-bucket
 ```
 
-**Step 5** – View the CloudWatch Log events for the`data-processor-1`and
-`data-processor-2`Lambda functions for evidence that both functions
+**Step 4** – View the CloudWatch Log events for the `data-processor-1` and `data-processor-2` Lambda functions for evidence that both functions
 received the Amazon SNS message of the Amazon S3 event.
+
+**Step 5** Check your output-bucket and confirm both new files are created:
+
+```bash
+$ aws s3 ls s3://output-bucket
+```
+
 
 ## Worth Noting
 
-The Add Permissions Lambda function will send output to CloudWatch Logs
-during Template One, showing the exchange between AWS CloudFormation and a
-Lambda custom resource.
+The `add-permission` Lambda function will send output to CloudWatch Logs during Template One, showing the exchange between AWS CloudFormation and a Lambda custom resource.
 
-The Data Processor 1 and 2 Lambda functions will show the Amazon S3 test event
-notification sent to the topic after Template Two.
+The `data-processor-1` and `data-processor-2` Lambda functions will show the Amazon S3 test event notification sent to the topic after Template Two.
 
 ## License
 
