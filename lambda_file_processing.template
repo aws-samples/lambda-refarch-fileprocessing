@@ -5,7 +5,15 @@
     "S3Bucket": {
       "Type": "AWS::S3::Bucket",
       "Properties": {
-        "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }]]}
+        "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }]]},
+        "NotificationConfiguration": {
+          "TopicConfigurations": [
+            {
+              "Event": "s3:ObjectCreated:*",
+              "Topic": { "Ref" : "SNSTopic" }
+            }
+          ]
+        }
       }
     },
     "S3BucketOut": {
@@ -185,95 +193,24 @@
       }
     },
 
-    "LambdaPermissionFunction": {
-      "Type": "AWS::Lambda::Function",
+    "LambdaInvokePermissionOne": {
+      "Type": "AWS::Lambda::Permission",
       "Properties": {
-        "Code": {
-          "S3Bucket": "awslambda-reference-architectures",
-          "S3Key": "file-processing/add-permission.zip"
-        },
-        "Description": "Function to add permission SNS publish to specified Lambda fx",
-        "Handler": "add-permission.handler",
-        "Role": {
-          "Fn::GetAtt": [
-            "LambdaPermissionRole",
-            "Arn"
-          ]
-        },
-        "Runtime": "nodejs",
-        "MemorySize": 128,
-        "Timeout": 3
-      }
-    },
-    "LambdaPermissionRole": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "AssumeRolePolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": [
-                  "lambda.amazonaws.com"
-                ]
-              },
-              "Action": [
-                "sts:AssumeRole"
-              ]
-            }
-          ]
-        },
-        "Path": "/"
-      }
-    },
-    "LambdaPermissionRolePolicy": {
-      "Type": "AWS::IAM::Policy",
-      "Properties": {
-        "PolicyName": "add-permission-lambda",
-        "PolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": [
-                "lambda:AddPermission"
-              ],
-              "Resource": "arn:aws:lambda:*"
-            },
-    	    {
-                  "Effect": "Allow",
-                  "Action": [
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents"
-                  ],
-                  "Resource": "arn:aws:logs:*:*:*"
-    	    }]
-        },
-        "Roles": [
-          {
-            "Ref": "LambdaPermissionRole"
-          }
-        ]
+        "FunctionName" : { "Fn::GetAtt" : ["LambdaFunctionOne", "Arn"] },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "sns.amazonaws.com",
+        "SourceArn" : { "Ref" : "SNSTopic" }
       }
     },
 
 
-    "LambdaPermissionsOne": {
-      "Type": "Custom::LambdaPermissionsOne",
+    "LambdaInvokePermissionTwo": {
+      "Type": "AWS::Lambda::Permission",
       "Properties": {
-        "ServiceToken": { "Fn::GetAtt" : ["LambdaPermissionFunction","Arn"]},
-        "Region": { "Ref": "AWS::Region" },
-        "LambdaFx": { "Ref" : "LambdaFunctionOne" }
-      }
-    },
-    "LambdaPermissionsTwo": {
-      "Type": "Custom::LambdaPermissionsTwo",
-      "Properties": {
-        "ServiceToken": { "Fn::GetAtt" : ["LambdaPermissionFunction","Arn"]},
-        "Region": { "Ref": "AWS::Region" },
-        "LambdaFx": { "Ref" : "LambdaFunctionTwo" }
+        "FunctionName" : { "Fn::GetAtt" : ["LambdaFunctionTwo", "Arn"] },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "sns.amazonaws.com",
+        "SourceArn" : { "Ref" : "SNSTopic" }
       }
     }
   },
