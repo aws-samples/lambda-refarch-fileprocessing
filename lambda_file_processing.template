@@ -1,8 +1,20 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "CFN template to create architecture represented at https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/.",
+  "Parameters": {
+    "CodeBucket": {
+      "Description": "S3 Bucket containing Lambda deployment packages and sub-stack templates",
+      "Type": "String",
+      "Default" : "awslambda-reference-architectures",
+    },
+    "CodeKeyPrefix": {
+      "Description": "The key prefix for all deployment packages and sub-stack templates within CodeBucket",
+      "Type": "String",
+      "Default" : "file-processing",
+    }
+  },
   "Resources": {
-    "S3Bucket": {
+    "InputBucket": {
       "Type": "AWS::S3::Bucket",
       "Properties": {
         "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }]]},
@@ -10,28 +22,26 @@
           "TopicConfigurations": [
             {
               "Event": "s3:ObjectCreated:*",
-              "Topic": { "Ref" : "SNSTopic" }
+              "Topic": { "Ref" : "InputNotificationTopic" }
             }
           ]
         }
       }
     },
-    "S3BucketOut": {
+    "OutputBucket": {
       "Type": "AWS::S3::Bucket",
       "Properties": {
         "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }, "-out"]]}
       }
     },
-    "SNSTopic": {
+    "InputNotificationTopic": {
       "Type": "AWS::SNS::Topic",
       "Properties": {
-        "DisplayName": "event-manifold-topic",
-        "TopicName": "event-manifold-topic",
         "Subscription": [
           {
             "Endpoint": {
               "Fn::GetAtt": [
-                "LambdaFunctionOne",
+                "ProcessorFunctionOne",
                 "Arn"
               ]
             },
@@ -40,7 +50,7 @@
           {
             "Endpoint": {
               "Fn::GetAtt": [
-                "LambdaFunctionTwo",
+                "ProcessorFunctionTwo",
                 "Arn"
               ]
             },
@@ -64,7 +74,7 @@
               },
               "Action": "sns:Publish",
               "Resource": {
-                "Ref": "SNSTopic"
+                "Ref": "InputNotificationTopic"
               },
               "Condition": {
                 "ArnLike": {
@@ -74,7 +84,7 @@
                       [
                         "arn:aws:s3:*:*:",
                         {
-                          "Ref": "S3Bucket"
+                          "Ref": "InputBucket"
                         }
                       ]
                     ]
@@ -86,12 +96,12 @@
         },
         "Topics": [
           {
-            "Ref": "SNSTopic"
+            "Ref": "InputNotificationTopic"
           }
         ]
       }
     },
-    "LambdaFunctionOne": {
+    "ProcessorFunctionOne": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
@@ -111,7 +121,7 @@
         "Timeout": 3
       }
     },
-    "LambdaFunctionTwo": {
+    "ProcessorFunctionTwo": {
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
@@ -196,10 +206,10 @@
     "LambdaInvokePermissionOne": {
       "Type": "AWS::Lambda::Permission",
       "Properties": {
-        "FunctionName" : { "Fn::GetAtt" : ["LambdaFunctionOne", "Arn"] },
+        "FunctionName" : { "Fn::GetAtt" : ["ProcessorFunctionOne", "Arn"] },
         "Action": "lambda:InvokeFunction",
         "Principal": "sns.amazonaws.com",
-        "SourceArn" : { "Ref" : "SNSTopic" }
+        "SourceArn" : { "Ref" : "InputNotificationTopic" }
       }
     },
 
@@ -207,10 +217,10 @@
     "LambdaInvokePermissionTwo": {
       "Type": "AWS::Lambda::Permission",
       "Properties": {
-        "FunctionName" : { "Fn::GetAtt" : ["LambdaFunctionTwo", "Arn"] },
+        "FunctionName" : { "Fn::GetAtt" : ["ProcessorFunctionTwo", "Arn"] },
         "Action": "lambda:InvokeFunction",
         "Principal": "sns.amazonaws.com",
-        "SourceArn" : { "Ref" : "SNSTopic" }
+        "SourceArn" : { "Ref" : "InputNotificationTopic" }
       }
     }
   },
@@ -218,31 +228,31 @@
     "Bucket": {
       "Description": "Storage location for data which is to be processed by Lambda functions",
       "Value": {
-        "Ref": "S3Bucket"
+        "Ref": "InputBucket"
       }
     },
     "BucketOut": {
       "Description": "Storage location for data which is to be processed by Lambda functions",
       "Value": {
-        "Ref": "S3BucketOut"
+        "Ref": "OutputBucket"
       }
     },
     "Topic": {
       "Description": "SNS topic to fanout S3 Event notifications to Lambda functions",
       "Value": {
-        "Ref": "SNSTopic"
+        "Ref": "InputNotificationTopic"
       }
     },
-    "LambdaFxOne": {
+    "ProcessorFxOne": {
       "Description": "Lambda function receiving SNS messages of S3 events",
       "Value": {
-        "Ref": "LambdaFunctionOne"
+        "Ref": "ProcessorFunctionOne"
       }
     },
-    "LambdaFxTwo": {
+    "ProcessorFxTwo": {
       "Description": "Lambda function receiving SNS messages of S3 events",
       "Value": {
-        "Ref": "LambdaFunctionTwo"
+        "Ref": "ProcessorFunctionTwo"
       }
     }
   }
