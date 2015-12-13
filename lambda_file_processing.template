@@ -5,19 +5,19 @@
     "CodeBucket": {
       "Description": "S3 Bucket containing Lambda deployment packages and sub-stack templates",
       "Type": "String",
-      "Default" : "awslambda-reference-architectures",
+      "Default" : "awslambda-reference-architectures"
     },
     "CodeKeyPrefix": {
       "Description": "The key prefix for all deployment packages and sub-stack templates within CodeBucket",
       "Type": "String",
-      "Default" : "file-processing",
+      "Default" : "file-processing"
     }
   },
   "Resources": {
     "InputBucket": {
       "Type": "AWS::S3::Bucket",
       "Properties": {
-        "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }]]},
+        "BucketName": {"Fn::Join" : ["-", [{"Ref" : "AWS::StackName"}, {"Ref" : "AWS::AccountId"}, "files"]]},
         "NotificationConfiguration": {
           "TopicConfigurations": [
             {
@@ -26,12 +26,13 @@
             }
           ]
         }
-      }
+      },
+      "DependsOn": "NotificationPolicy"
     },
     "OutputBucket": {
       "Type": "AWS::S3::Bucket",
       "Properties": {
-        "BucketName": {"Fn::Join" : ["", [{"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref": "AWS::AccountId" }, "-out"]]}
+        "BucketName": {"Fn::Join" : ["-", [{"Ref" : "InputBucket"}, "out"]]}
       }
     },
     "InputNotificationTopic": {
@@ -83,9 +84,7 @@
                       "",
                       [
                         "arn:aws:s3:*:*:",
-                        {
-                          "Ref": "InputBucket"
-                        }
+                        {"Fn::Join" : ["-", [{"Ref" : "AWS::StackName"}, {"Ref" : "AWS::AccountId"}, "files"]]}
                       ]
                     ]
                   }
@@ -105,8 +104,8 @@
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
-          "S3Bucket": "awslambda-reference-architectures",
-          "S3Key": "file-processing/data-processor-1.zip"
+          "S3Bucket": { "Ref": "CodeBucket" },
+          "S3Key": {"Fn::Join" : ["/", [{"Ref": "CodeKeyPrefix"}, "data-processor-1.zip"]]}
         },
         "Description": "Data Processor One",
         "Handler": "data-processor-1.handler",
@@ -125,8 +124,8 @@
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
-          "S3Bucket": "awslambda-reference-architectures",
-          "S3Key": "file-processing/data-processor-2.zip"
+          "S3Bucket": { "Ref": "CodeBucket" },
+          "S3Key": {"Fn::Join" : ["/", [{"Ref": "CodeKeyPrefix"}, "data-processor-2.zip"]]}
         },
         "Description": "Data Processor Two",
         "Handler": "data-processor-2.handler",
@@ -184,14 +183,14 @@
               "Action": [
                 "s3:GetObject"
               ],
-              "Resource": { "Fn::Join" : [ "", [ "arn:aws:s3:::", {"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref" : "AWS::AccountId"} , "/*" ]] }
+              "Resource": { "Ref" : "InputBucket" }
             },
             {
               "Effect": "Allow",
               "Action": [
                 "s3:PutObject"
               ],
-              "Resource": { "Fn::Join" : [ "", [ "arn:aws:s3:::", {"Ref" : "AWS::StackName"}, "-eventarchive-", {"Ref" : "AWS::AccountId"}, "-out" , "/*" ]] }
+              "Resource": { "Ref" : "OutputBucket" }
             }
           ]
         },
