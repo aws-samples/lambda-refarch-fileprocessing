@@ -1,58 +1,83 @@
 # AWS Lambda Reference Architecture: Real-time File Processing
 
-The Real-time File Processing reference architecture is an general-purpose event-driven parallel data processing architecture that utilizes [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in this [diagram](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) and [blog post](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/). This sample applicaton demonstrates a Markdown conversion application where Lambda is used to convert Markdown files to HTML and plain text.
+The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that utilizes [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in this [diagram](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) and [blog post](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/). This sample applicaton demonstrates a Markdown conversion application where Lambda is used to convert Markdown files to HTML and plain text.
 
-## AWS CloudFormation Template
+## Running the Example
 
-[![Launch into Lambda ETL into North Virginia with CloudFormation](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/images/cloudformation-launch-stack-button.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=lambda-file-processing&templateURL=https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
-
-[The provided template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
-creates the following resources:
-
--   Two Amazon Simple Storage Service (Amazon S3) buckets with dynamically-generated names based on the CloudFormation stack name and the account ID where the stack is launched:
-    - `InputBucket` is used to hold the raw Markdown files to be processed and is configured to send a notification to the `InputNotificationTopic` when a new object is created.
-    - `OutputBucket` is populated by the processor functions that run in response to each object added to `InputBucket`.
-
--   An Amazon Simple Notification Service (Amazon SNS) topic used to invoke multiple Lambda functions in response to each object creation notification.
-
--   An Amazon SNS topic policy which permits `InputBucket` to call the `Publish` action on the topic.
-
--   Two Lambda functions that process each object uploaded to `InputBucket`:
-    - `ProcessorFunctionOne` converts Markdown files to HTML.
-    - `ProcessorFunctionTwo` converts Markdown files to plain text.
-
--   An AWS Identity and Access Management (IAM) role for the two Lambda functions to assume when invoked.
--   An IAM policy associated with the role that allows the functions to get objects from `InputBucket`, put object to `OutputBucket` and log to Amazon CloudWatch.
--  Two Lambda permissions that enable Amazon SNS to invoke both processor functions.
-
-## Instructions
+The provided [AWS CloudFormation template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template) can be used to launch a stack that demonstrates the Lambda file processing reference architecture. Detailed information about the this template can be found in the CloudFormation Template Details section below.
 
 **Important:** Because the AWS CloudFormation stack name is used in the name of the S3 buckets, that stack name must only contain lowercase letters. Please use lowercase letters when typing the stack name. The provided CloudFormation template retreives its Lambda code from a bucket in the us-east-1 region. To launch this sample in another region, please modify the template and upload the Lambda code to a bucket in that region.
 
-**Step 1** – Create an AWS CloudFormation Stack with Template One.
 
-**Step 2** – Update Template One with Template Two (Update Stack).
+Use the button below to launch the stack via the AWS Console.
 
-**Step 3** – Upload a Markdown file to the `trigger-bucket` by using the AWS Command Line Interface:
+[![Launch into Lambda ETL into North Virginia with CloudFormation](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/images/cloudformation-launch-stack-button.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=lambda-file-processing&templateURL=https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
 
-```bash
-$ aws s3 cp <some_file> s3://trigger-bucket
-```
-
-**Step 4** – View the CloudWatch Log events for the `data-processor-1` and `data-processor-2` Lambda functions for evidence that both functions were triggered by the Amazon SNS message from the Amazon S3 upload event.
-
-**Step 5** Check your `output-bucket` and confirm both new files are created:
+Alternatively, you can use the following command to launch the stack using the AWS CLI. This assumes you have already [installed the AWS CLI](http://docs.aws.amazon.com/cli/latest/userguide/installing.html).
 
 ```bash
-$ aws s3 ls s3://output-bucket
+aws cloudformation create-stack \
+    --stack-name lambda-file-processing \
+    --template-url https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template \
+    --capabilities CAPABILITY_IAM
 ```
 
+## Testing
 
-## Worth Noting
+Once you have created the stack using the provided template, you can test the system by uploading a Markdown file to the InputBucket that was created in the stack. The README.md file in this repository can be used as an example file. Once the file has been uploaded, you can see the resulting HTML and plain text files in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
 
-The `add-permission` Lambda function will send output to CloudWatch Logs during Template One, showing the exchange between AWS CloudFormation and a Lambda custom resource.
+You can use the following commands to copy a sample file from the provided S3 bucket into the input bucket of your stack.
 
-The `data-processor-1` and `data-processor-2` Lambda functions will show the Amazon S3 test event notification sent to the topic after Template Two.
+```
+BUCKET=$(aws cloudformation describe-stack-resource --stack-name lambda-file-processing --logical-resource-id InputBucket --query "StackResourceDetail.PhysicalResourceId" --output text)
+aws s3 cp s3://awslambda-reference-architectures/file-processing/example.md s3://$BUCKET/example.md
+```
+
+After the file has been uploaded to the input bucket you can inspect the output bucket to see the rendered HTML and plain text output files created by the Lambda functions.
+
+You can also view the CloudWatch logs generated by the Lambda functions.
+
+## Cleaning Up
+
+To tear down the deployed resources you must complete the following steps:
+
+1. Delete all objects in the input and output buckets.
+1. Delete the CloudFormation stack.
+1. Delete the CloudWatch Log groups that contain the execution logs for the two processor functions.
+
+
+
+## CloudFormation Template Resources
+
+### Parameters
+- *CodeBucket*: Name of the S3 bucket in the stack's region that contains the code for the two Lambda functions, ProcessorFunctionOne and ProcessorFunctionTwo. Defaults to the managed bucket 'awslambda-reference-architectures'.
+
+- *CodeKeyPrefix*: The key prefix for the Lambda function code relative to `CodeBucket`. Defaults to 'file-processing'.
+
+### Resources
+[The provided template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
+creates the following resources:
+
+- *InputBucket*: An Amazon Simple Storage Service (Amazon S3) bucket that holds the raw Markdown files. Uploading a file to this bucket will trigger both processing functions.
+
+- *OutputBucket*: An Amazon S3 bucket that is populated by the processor functions with the transformed files.
+
+- *InputNotificationTopic*: An Amazon Simple Notification Service (Amazon SNS) topic used to invoke multiple Lambda functions in response to each object creation notification.
+
+- *NotificationPolicy*: An Amazon SNS topic policy which permits `InputBucket` to call the `Publish` action on the topic.
+
+- *ProcessorFunctionOne*: An AWS Lambda function that converts Markdown files to HTML. The deployment package for this function must be located at s3://[CodeBucket]/[CodeKeyPrefix]/data-processor-1.zip.
+
+- *ProcessorFunctionTwo*: An AWS Lambda function that converts Markdown files to plain text.  The deployment package for this function must be located at s3://[CodeBucket]/[CodeKeyPrefix]/data-processor-2.zip.
+
+- *LambdaExecutionRole*: An AWS Identity and Access Management (IAM) role used by the two Lambda functions.
+
+- *RolePolicy*:  An IAM policy associated with `LambdaExecutionRole` that allows the functions to get objects from `InputBucket`, put object to `OutputBucket` and log to Amazon CloudWatch.
+
+- *LambdaInvokePermissionOne*: A policy that enables Amazon SNS to invoke ProcessorFunctionOne based on notifications from InputNotificationTopic.
+
+- *LambdaInvokePermissionTwo*: A policy that enables Amazon SNS to invoke ProcessorFunctionTwo based on notifications from InputNotificationTopic.
+
 
 ## License
 
