@@ -183,14 +183,14 @@
               "Action": [
                 "s3:GetObject"
               ],
-              "Resource": { "Ref" : "InputBucket" }
+              "Resource": { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref" : "InputBucket" }, "/*"]]}
             },
             {
               "Effect": "Allow",
               "Action": [
                 "s3:PutObject"
               ],
-              "Resource": { "Ref" : "OutputBucket" }
+              "Resource": { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref" : "OutputBucket" }, "/*"]]}
             }
           ]
         },
