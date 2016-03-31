@@ -1,4 +1,4 @@
-# AWS Lambda Reference Architecture: Real-time File Processing
+# Serverless Reference Architecture: Real-time File Processing
 
 The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in this [diagram](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) and ["Fanout S3 Event Notifications to Multiple Endpoints" blog post](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/) on the AWS Compute Blog. This sample application demonstrates a Markdown conversion application where Lambda is used to convert Markdown files to HTML and plain text.
 
