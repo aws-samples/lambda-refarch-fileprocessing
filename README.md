@@ -29,7 +29,8 @@ aws cloudformation create-stack \
 
 Install the dependencies for lambda
 
-```cd src/data-processor-1 && npm install async marked
+```
+cd src/data-processor-1 && npm install async marked
 cd  src/data-processor-2 && npm install async marked
 ```
 
