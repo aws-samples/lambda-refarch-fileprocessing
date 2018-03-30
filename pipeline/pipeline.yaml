@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Template for full CI/CD serverless applications."
+Parameters:
+  AppName:
+    Type: String
+    Description: Name of the application.
+  SAMInputFile:
+    Type: String
+    Description: The filename for the SAM file.
+  SAMOutputFile:
+    Type: String
+    Description: The filename for the output SAM file from the buildspec file
+  CodeBuildImage:
+    Type: String
+    Default: "aws/codebuild/nodejs:4.3.2"
+    Description: Image used for CodeBuild project.
+  GitHubRepoName:
+    Type: String
+    Description: The GitHub repo name
+  GitHubRepoBranch:
+    Type: String
+    Description: The GitHub repo branch code pipelines should watch for changes on
+    Default: master
+  GitHubUser:
+    Type: String
+    Description: GitHub UserName. This username must have access to the GitHubToken.
+  GitHubToken:
+    NoEcho: true
+    Type: String
+    Description: "Secret. OAuthToken with access to Repo. Long string of characters and digits. Go to https://github.com/settings/tokens"
+  CodePipelineRole:
+    Type: String
+    Description: Role the pipeline will use
+  CloudformationRole:
+    Type: String
+    Description: Role for cloudformation
+  CodeBuildRole:
+    Type: String
+    Description: Role for code build
+  CICDS3BucketName:
+    Type: String
+    Description: S3 Bucket where the pipeline templates live
+Resources:
+  CodeBuildProject:
+    DependsOn: [S3Bucket]
+    Description: Creating AWS CodeBuild project
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Description: !Sub "Building stage for ${AppName}."
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: S3_BUCKET
+            Value: !Ref S3Bucket
+          - Name: INPUT_FILE
+            Value: !Ref SAMInputFile
+        Image: !Ref CodeBuildImage
+        Type: LINUX_CONTAINER
+      Name: !Sub "${AppName}-build"
+      ServiceRole: !Ref CodeBuildRole
+      Source:
+        Type: CODEPIPELINE
+      Tags:
+        - Key: app-name
+          Value: !Ref AppName
+      TimeoutInMinutes: 5
+  S3Bucket:
+    Description: Creating Amazon S3 bucket for AWS CodePipeline artifacts
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}"
+      VersioningConfiguration:
+        Status: Enabled
+  S3ArtifactBucketPolicy:
+    DependsOn: [S3Bucket]
+    Description: Setting Amazon S3 bucket policy for AWS CodePipeline access
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Id: SSEAndSSLPolicy
+        Statement:
+        - Sid: DenyInsecureConnections
+          Effect: Deny
+          Principal: "*"
+          Action: s3:*
+          Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+          Condition:
+            Bool:
+              aws:SecureTransport: false
+  ProjectPipeline:
+    DependsOn: [S3Bucket, CodeBuildProject]
+    Description: Creating a deployment pipeline for your project in AWS CodePipeline
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "${AppName}-pipeline"
+      RoleArn: !Ref CodePipelineRole
+      Stages:
+      - Name: Source
+        Actions:
+        - Name: source
+          InputArtifacts: []
+          ActionTypeId:
+            Version: "1"
+            Category: Source
+            Owner: ThirdParty
+            Provider: GitHub
+          OutputArtifacts:
+          - Name: !Sub "${AppName}-SourceArtifact"
+          Configuration:
+            Repo: !Ref GitHubRepoName
+            Branch: !Ref GitHubRepoBranch
+            OAuthToken: !Ref GitHubToken
+            Owner: !Ref GitHubUser
+          RunOrder: 1
+      - Name: Build
+        Actions:
+        - Name: build-from-source
+          InputArtifacts:
+          - Name: !Sub "${AppName}-SourceArtifact"
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: "1"
+            Provider: CodeBuild
+          OutputArtifacts:
+          - Name: !Sub "${AppName}-BuildArtifact"
+          Configuration:
+            ProjectName: !Sub "${AppName}-build"
+          RunOrder: 1
+      - Name: Deploy
+        Actions:
+        - Name: create-changeset
+          InputArtifacts:
+          - Name: !Sub "${AppName}-BuildArtifact"
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Version: "1"
+            Provider: CloudFormation
+          OutputArtifacts: []
+          Configuration:
+            StackName: !Sub "${AppName}-serverless-stack"
+            ActionMode: CHANGE_SET_REPLACE
+            RoleArn: !Ref CloudformationRole
+            ChangeSetName: pipeline-changeset
+            Capabilities: CAPABILITY_NAMED_IAM
+            TemplatePath: !Sub "${AppName}-BuildArtifact::${SAMOutputFile}"
+            ParameterOverrides: !Sub '"CICDS3BucketName":"${CICDS3BucketName}"}'
+          RunOrder: 1
+        - Name: execute-changeset
+          InputArtifacts: []
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Version: "1"
+            Provider: CloudFormation
+          OutputArtifacts: []
+          Configuration:
+            StackName: !Sub "${AppName}-serverless-stack"
+            ActionMode: CHANGE_SET_EXECUTE
+            ChangeSetName: pipeline-changeset
+          RunOrder: 2
+      ArtifactStore:
+        Type: S3
+        Location: !Ref S3Bucket
