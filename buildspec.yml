@@ -4,8 +4,8 @@ containers:
         phases:
             during_build:
                 commands:
-                    - cd data-processor-1 && pwd && npm install
-                    - cd data-processor-2 && pwd && npm install
+                    - cd src/data-processor-1 && pwd && npm install
+                    - cd src/data-processor-2 && pwd && npm install
                     - aws cloudformation package --template $INPUT_FILE --s3-bucket $S3_BUCKET --output-template post-sam.yaml
         artifacts:
             files:
