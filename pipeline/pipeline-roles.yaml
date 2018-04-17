@@ -72,7 +72,7 @@ Resources:
         - Action: ["apigateway:*"]
           Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
           Effect: Allow
-       - Action: ["sns:*"]
+        - Action: ["sns:*"]
           Resource: !Sub "arn:aws:sns:${AWS::Region}::*"
           Effect: Allow
         - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole"]
