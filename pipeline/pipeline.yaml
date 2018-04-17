@@ -150,10 +150,7 @@ Resources:
             ChangeSetName: pipeline-changeset
             Capabilities: CAPABILITY_NAMED_IAM
             TemplatePath: !Sub "${AppName}-BuildArtifact::${SAMOutputFile}"
-            ParameterOverrides: !Sub |
-              {
-                "CICDS3BucketName": "${CICDS3BucketName}"
-              }
+            #ParameterOverrides: !Sub '{"CICDS3BucketName":"${CICDS3BucketName}"}'
           RunOrder: 1
         - Name: execute-changeset
           InputArtifacts: []
