@@ -25,6 +25,36 @@ aws cloudformation create-stack \
     --capabilities CAPABILITY_IAM
 ```
 
+## Using SAM
+
+Install the dependencies for lambda
+
+```
+cd src/data-processor-1 && npm install async marked
+cd  src/data-processor-2 && npm install async marked
+```
+
+Run SAM package (equivalent to aws cloudformation package)
+
+```
+aws cloudformation package \
+    --template-file lambda_file_processing.yml \
+    --s3-bucket sam-stuff \
+    --output-template-file post-sam.yml
+
+```
+
+
+Deploy the SAM template
+
+```
+aws cloudformation deploy \
+    --template-file ./post-sam.yml \
+    --stack-name lambda-file-refarch \
+    --capabilities CAPABILITY_IAM
+```
+
+
 ## Testing the Example
 
 After you have created the stack using the CloudFormation template, you can test the system by uploading a Markdown file to the InputBucket that was created in the stack. You can use this README.md file in the repository as an example file. After the file has been uploaded, you can see the resulting HTML and plain text files in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.

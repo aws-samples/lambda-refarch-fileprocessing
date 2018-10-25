@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Main template for a CI/CD Serverless application."
+Parameters:
+  AppName:
+    Type: String
+    Description: Name of the application
+    MinLength: "1"
+    MaxLength: "80"
+    AllowedPattern: "[A-Za-z0-9-]+"
+    ConstraintDescription: Malformed input parameter. AppName must only contain upper and lower case letters, numbers, and -.
+  SAMInputFile:
+    Type: String
+    Description: The filename for the SAM file.
+    Default: lambda_file_processing.yml
+  SAMOutputFile:
+    Type: String
+    Description: The filename for the output SAM file from the buildspec file.
+    Default: post-sam.yaml
+  CodeBuildImage:
+    Type: String
+    Default: "aws/codebuild/nodejs:4.3.2"
+    Description: Image used for CodeBuild project.
+  CICDS3BucketName:
+    Type: String
+    Default: "sam-stuff"
+    Description: S3 Bucket where the pipeline templates live
+  GitHubRepoName:
+    Type: String
+    Default: ""
+    Description: The GitHub repo name
+  GitHubRepoBranch:
+    Type: String
+    Description: The GitHub repo branch code pipelines should watch for changes on
+    Default: master
+  GitHubUser:
+    Type: String
+    Description: GitHub UserName. This username must have access to the GitHubToken.
+  GitHubToken:
+    NoEcho: true
+    Type: String
+    Description: "Secret. OAuthToken with access to Repo. Long string of characters and digits. Go to https://github.com/settings/tokens"
+Resources:
+  ServerlessRoles:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      Parameters:
+        AppName: !Ref AppName
+      TemplateURL:
+        Fn::Sub: https://${CICDS3BucketName}.s3.amazonaws.com/templates/pipeline-roles.yaml
+  ServerlessPipeline:
+    Type: "AWS::CloudFormation::Stack"
+    DependsOn: [ServerlessRoles]
+    Properties:
+      Parameters:
+        AppName: !Ref AppName
+        SAMInputFile: !Ref SAMInputFile
+        SAMOutputFile: !Ref SAMOutputFile
+        CodeBuildImage: !Ref CodeBuildImage
+        GitHubRepoName: !Ref GitHubRepoName
+        GitHubRepoBranch: !Ref GitHubRepoBranch
+        GitHubUser: !Ref GitHubUser
+        GitHubToken: !Ref GitHubToken
+        CICDS3BucketName: !Ref CICDS3BucketName
+        CodePipelineRole: !GetAtt ServerlessRoles.Outputs.CodePipelineRole
+        CloudformationRole: !GetAtt ServerlessRoles.Outputs.CloudformationDeployRole
+        CodeBuildRole: !GetAtt ServerlessRoles.Outputs.CodeBuildRole
+      TemplateURL:
+        Fn::Sub: https://${CICDS3BucketName}.s3.amazonaws.com/templates/pipeline.yaml
