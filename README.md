@@ -50,7 +50,7 @@ sam package \
 
 Deploy the SAM template
 
-```
+```bash
 sam deploy \
     --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
@@ -65,8 +65,8 @@ After you have created the stack using the CloudFormation template, you can test
 You can use the following commands to copy a sample file from the provided S3 bucket into the input bucket of your stack.
 
 ```
-BUCKET=$(aws cloudformation describe-stack-resource --stack-name lambda-file-processing --logical-resource-id InputBucket --query "StackResourceDetail.PhysicalResourceId" --output text)
-aws s3 cp s3://awslambda-reference-architectures/file-processing/example.md s3://$BUCKET/example.md
+BUCKET=$(aws cloudformation describe-stack-resource --stack-name lambda-file-refarch --logical-resource-id InputBucket --query "StackResourceDetail.PhysicalResourceId" --output text)
+aws s3 cp ./sample.md s3://$BUCKET/sample.md
 ```
 
 After the file has been uploaded to the input bucket, you can inspect the output bucket to see the rendered HTML and plain text output files created by the Lambda functions.
