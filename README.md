@@ -5,9 +5,13 @@ README Languages:  [DE](README/README-DE.md) | [ES](README/README-ES.md) | [FR](
 
 The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. This simple architecture is described in this [diagram](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda-refarch-fileprocessing.pdf) and ["Fanout S3 Event Notifications to Multiple Endpoints" blog post](https://aws.amazon.com/blogs/compute/fanout-s3-event-notifications-to-multiple-endpoints/) on the AWS Compute Blog. This sample application demonstrates a Markdown conversion application where Lambda is used to convert Markdown files to HTML and plain text.
 
+## Architectural Diagram
+
+![Reference Architecture - Real-time File Processing](img/lambda-refarch-fileprocessing-simple.png)
+
 ## Running the Example
 
-You can use the provided [AWS CloudFormation template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template) to launch a stack that demonstrates the Lambda file processing reference architecture. Details about the resources created by this template are provided in the *CloudFormation Template Resources* section of this document.
+You can use the provided [AWS SAM template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template) to launch a stack that demonstrates the Lambda file processing reference architecture. Details about the resources created by this template are provided in the *CloudFormation Template Resources* section of this document.
 
 **Important** Because the AWS CloudFormation stack name is used in the name of the Amazon Simple Storage Service (Amazon S3) buckets, that stack name must only contain lowercase letters. Use lowercase letters when typing the stack name. The provided CloudFormation template retrieves its Lambda code from a bucket in the us-east-1 region. To launch this sample in another region, please modify the template and upload the Lambda code to a bucket in that region.
 
@@ -29,27 +33,26 @@ aws cloudformation create-stack \
 
 Install the dependencies for lambda
 
-```
-cd src/data-processor-1 && npm install async marked
-cd  src/data-processor-2 && npm install async marked
+```bash
+cd src/conversion && pip install -r requirements.txt -t .
+cd  src/sentiment && pip install -r requirements.txt -t .
 ```
 
 Run SAM package (equivalent to aws cloudformation package)
 
-```
-aws cloudformation package \
-    --template-file lambda_file_processing.yml \
-    --s3-bucket sam-stuff \
-    --output-template-file post-sam.yml
-
+```bash
+sam package \
+    --template-file file_processing.yml \
+    --output-template-file packaged-template.yml \
+    --s3-bucket <YOUR S3 CODE BUCKET>
 ```
 
 
 Deploy the SAM template
 
 ```
-aws cloudformation deploy \
-    --template-file ./post-sam.yml \
+sam deploy \
+    --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
     --capabilities CAPABILITY_IAM
 ```
@@ -83,33 +86,35 @@ To remove all resources created by this example, do the following:
 ## CloudFormation Template Resources
 
 ### Parameters
-- **CodeBucket** - Name of the S3 bucket in the stack's region that contains the code for the two Lambda functions, ProcessorFunctionOne and ProcessorFunctionTwo. Defaults to the managed bucket `awslambda-reference-architectures`.
-
-- **CodeKeyPrefix** - The key prefix for the Lambda function code relative to `CodeBucket`. Defaults to `file-processing`.
+TBD
 
 ### Resources
 [The provided template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/lambda_file_processing.template)
 creates the following resources:
 
-- **InputBucket** - An S3 bucket that holds the raw Markdown files. Uploading a file to this bucket will trigger both processing functions.
+- **InputBucket** - An S3 bucket that holds the raw Markdown files. Uploading a file to this bucket will trigger processing functions.
 
-- **OutputBucket** - An S3 bucket that is populated by the processor functions with the transformed files.
+- **CloudTrailBucket** - An S3 bucket that is used to store CloudTrail data.
 
-- **InputNotificationTopic** - An Amazon Simple Notification Service (Amazon SNS) topic used to invoke multiple Lambda functions in response to each object creation notification.
+- **InputBucketTrail** - An CloudTrail definition that captures events put into the **CloudTrailBucket**.
 
-- **NotificationPolicy** - An Amazon SNS topic policy which permits `InputBucket` to call the `Publish` action on the topic.
+- **CloudTrailBucketPolicy** - A S3 policy which permits the AWS CloudTrail service to write data to the **CloudTrailBucket**.
 
-- **ProcessorFunctionOne** - An AWS Lambda function that converts Markdown files to HTML. The deployment package for this function must be located at `s3://[CodeBucket]/[CodeKeyPrefix]/data-processor-1.zip`.
+- **FileProcessingQueuePolicy** - A SQS policy that allows the **FileProcessingRule** to publish events to the **ConversionQueue** and **SentimentQueue**.
 
-- **ProcessorFunctionTwo** - An AWS Lambda function that converts Markdown files to plain text.  The deployment package for this function must be located at `s3://[CodeBucket]/[CodeKeyPrefix]/data-processor-2.zip`.
+- **FileProcessingRule** - A CloudWatch Events Rule that monitors CloudTrail `PubObject` events from the **InputBucket**.
 
-- **LambdaExecutionRole** - An AWS Identity and Access Management (IAM) role used by the two Lambda functions.
+- **ConversionQueue** - TBD.
 
-- **RolePolicy** - An IAM policy associated with **LambdaExecutionRole** that allows the functions to get objects from `InputBucket`, put object to `OutputBucket` and log to Amazon CloudWatch.
+- **ConversionDlq** - TBD.
 
-- **LambdaInvokePermissionOne** - A policy that enables Amazon SNS to invoke ProcessorFunctionOne based on notifications from InputNotificationTopic.
+- **ConversionFunction** - TBD.
 
-- **LambdaInvokePermissionTwo** - A policy that enables Amazon SNS to invoke ProcessorFunctionTwo based on notifications from InputNotificationTopic.
+- **SentimentQueue** - TBD.
+
+- **SentimentDlq** - TBD.
+
+- **SentimentFunction** - TBD.
 
 
 ## License

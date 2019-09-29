@@ -127,6 +127,7 @@ Resources:
           
   ConversionFunction:
     Type: 'AWS::Serverless::Function'
+    DependsOn: ConversionTargetBucket
     Properties:
       Handler: conversion.handler
       Runtime: python3.6
@@ -135,12 +136,24 @@ Resources:
         - SQSPollerPolicy:
             QueueName:
               !GetAtt ConversionQueue.Arn
+        - S3FullAccessPolicy:
+            BucketName:
+              !GetAtt InputBucket.Arn
+        - S3FullAccessPolicy:
+            BucketName:
+              !GetAtt ConversionTargetBucket.Arn
+      Environment:
+        Variables:
+          TARGET_BUCKET: !Ref ConversionTargetBucket
       Events:
         ConversionQueueReaderEvent:
           Type: SQS
           Properties:
             Queue: !GetAtt ConversionQueue.Arn
             BatchSize: 10
+
+  ConversionTargetBucket:
+    Type: AWS::S3::Bucket
 
   SentimentQueue:
     Type: AWS::SQS::Queue
