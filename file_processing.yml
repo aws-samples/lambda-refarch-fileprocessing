@@ -136,12 +136,36 @@ Resources:
         - SQSPollerPolicy:
             QueueName:
               !GetAtt ConversionQueue.Arn
-        - S3FullAccessPolicy:
-            BucketName:
-              !GetAtt InputBucket.Arn
-        - S3FullAccessPolicy:
-            BucketName:
-              !GetAtt ConversionTargetBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: InputBucket
+                    - '/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: ConversionTargetBucket
+                    - '/*'
+        # - S3FullAccessPolicy:
+        #     BucketName:
+        #       !GetAtt ConversionTargetBucket.Arn
       Environment:
         Variables:
           TARGET_BUCKET: !Ref ConversionTargetBucket

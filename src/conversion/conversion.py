@@ -52,51 +52,57 @@ def upload_html(target_bucket, target_key, source_file):
 
 
 def handler(event, context):
-    log_event = {}
+    for record in event['Records']:
+        log_event = {}
 
-    try:
-        json_body = json.loads(event['Records'][0]['body'])
-        request_params = json_body['detail']['requestParameters']
-        bucket_name = request_params['bucketName']
-        key_name = request_params['key']
-        log_event['source_s3_bucket_name'] = bucket_name
-        log_event['source_s3_key_name'] = key_name
+        log_event['request_id'] = context.aws_request_id
+        log_event['invoked_function_arn'] = context.invoked_function_arn
+        log_event['sqs_message_id'] = record['messageId']
+        log_event['sqs_event_source_arn'] = record['eventSourceARN']
 
-        size = check_s3_object_size(bucket_name, key_name)
+        try:
+            json_body = json.loads(record['body'])
+            request_params = json_body['detail']['requestParameters']
+            bucket_name = request_params['bucketName']
+            key_name = request_params['key']
+            log_event['source_s3_bucket_name'] = bucket_name
+            log_event['source_s3_key_name'] = key_name
 
-        download_status = get_s3_object(bucket_name, key_name)
+            size = check_s3_object_size(bucket_name, key_name)
 
-        local_file = '/tmp/{}'.format(key_name)
-        
-        if download_status == 'ok':
-            log_event['source_s3_download'] = 'ok'
-            key_bytes = os.stat(local_file).st_size
-            log_event['source_s3_download_bytes'] = key_bytes
-        else:
-            log_event['source_s3_download'] = download_status
-            log_event['source_s3_download_bytes'] = -1
+            download_status = get_s3_object(bucket_name, key_name)
 
-        html = convert_to_html(local_file)
+            local_file = '/tmp/{}'.format(key_name)
+            
+            if download_status == 'ok':
+                log_event['src_s3_download'] = 'ok'
+                key_bytes = os.stat(local_file).st_size
+                log_event['src_s3_download_bytes'] = key_bytes
+            else:
+                log_event['src_s3_download'] = download_status
+                log_event['src_s3_download_bytes'] = -1
 
-        html_filename = os.path.splitext(key_name)[0] + '.html'
+            html = convert_to_html(local_file)
 
-        html_file = '/tmp/{}'.format(html_filename)
+            html_filename = os.path.splitext(key_name)[0] + '.html'
 
-        with open(html_file, 'w') as outfile:
-            outfile.write(html)
+            html_file = '/tmp/{}'.format(html_filename)
 
-        html_upload = upload_html(target_bucket, html_filename, html_file)
+            with open(html_file, 'w') as outfile:
+                outfile.write(html)
 
-        if html_upload == 'ok':
-            log_event['dest_s3_object'] = 's3://{}/{}'.format(target_bucket, html_filename)
-        else:
-            log_event['dest_s3_object'] = ''
+            html_upload = upload_html(target_bucket, html_filename, html_file)
 
-        log_event['dest_s3_upload'] = html_upload
+            if html_upload == 'ok':
+                log_event['dst_s3_object'] = 's3://{}/{}'.format(target_bucket, html_filename)
+            else:
+                log_event['dst_s3_object'] = ''
 
-    except Exception as e:
-        log_event['error_msg'] = str(e)
+            log_event['dst_s3_upload'] = html_upload
+
+        except Exception as e:
+            log_event['error_msg'] = str(e)
+            print(log_event)
+            return 'fail'
         print(log_event)
-        return 'fail'
-    print(log_event)
-    return 'ok'
+        return 'ok'
