@@ -26,7 +26,7 @@ Install the dependencies for lambda
 
 ```bash
 cd src/conversion && pip install -r requirements.txt -t .
-cd  src/sentiment && pip install -r requirements.txt -t .
+cd src/sentiment && pip install -r requirements.txt -t .
 ```
 
 Run SAM package (equivalent to aws cloudformation package)
