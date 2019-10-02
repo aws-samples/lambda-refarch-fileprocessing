@@ -163,9 +163,6 @@ Resources:
                   - - 'arn:aws:s3:::'
                     - Ref: ConversionTargetBucket
                     - '/*'
-        # - S3FullAccessPolicy:
-        #     BucketName:
-        #       !GetAtt ConversionTargetBucket.Arn
       Environment:
         Variables:
           TARGET_BUCKET: !Ref ConversionTargetBucket
@@ -203,10 +200,49 @@ Resources:
         - SQSPollerPolicy:
             QueueName:
               !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: InputBucket
+                    - '/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:DetectSentiment
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 
+                - dynamodb:PutItem
+              Resource: !GetAtt SentimentTable.Arn
+      Environment:
+        Variables:
+          SENTIMENT_TABLE: !Ref SentimentTable
       Events:
         SentimentQueueReaderEvent:
           Type: SQS
           Properties:
             Queue: !GetAtt SentimentQueue.Arn
-            BatchSize: 10     
+            BatchSize: 10
+  
+  SentimentTable:
+    Type: AWS::Serverless::SimpleTable
+    TableName: ref-arch-filearch-document-sentiment
+    PrimaryKey:
+      Name: 's3_object'
+      Type: String
   

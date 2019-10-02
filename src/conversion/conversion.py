@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 import boto3
 import botocore
@@ -81,17 +82,18 @@ def handler(event, context):
             else:
                 log_event['src_s3_download'] = download_status
                 log_event['src_s3_download_bytes'] = -1
+                sys.exit(1)
 
             html = convert_to_html(local_file)
 
             html_filename = os.path.splitext(key_name)[0] + '.html'
 
-            html_file = '/tmp/{}'.format(html_filename)
+            local_html_file = '/tmp/{}'.format(html_filename)
 
-            with open(html_file, 'w') as outfile:
+            with open(local_html_file, 'w') as outfile:
                 outfile.write(html)
 
-            html_upload = upload_html(target_bucket, html_filename, html_file)
+            html_upload = upload_html(target_bucket, html_filename, local_html_file)
 
             if html_upload == 'ok':
                 log_event['dst_s3_object'] = 's3://{}/{}'.format(target_bucket, html_filename)
