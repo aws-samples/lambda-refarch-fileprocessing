@@ -123,10 +123,17 @@ def handler(event, context):
 
         finally:
             filesToRemove = os.listdir(tmpdir)
+
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
                 print(f'Removing File: {file_path}')
-                os.remove(file_path)
+
+                try:
+                    os.remove(file_path)
+                except OSError as e:
+                    print(e)
+                    print(f'Error while deleting file {file_path}')
+
             print(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
