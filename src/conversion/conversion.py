@@ -5,8 +5,9 @@ import sys
 import boto3
 import botocore
 import markdown
+import tempfile
 
-max_object_size = 104857600 # 100MB = 104857600 bytes
+max_object_size = 104857600  # 100MB = 104857600 bytes
 
 target_bucket = os.getenv('TARGET_BUCKET')
 
@@ -19,12 +20,13 @@ def check_s3_object_size(bucket, key_name):
     except Exception as e:
         print('Error: {}'.format(str(e)))
         size = 'NaN'
-    
+
     return size
 
-def get_s3_object(bucket, key_name):
+
+def get_s3_object(bucket, key_name, local_file):
     try:
-        s3_resource.Bucket(bucket).download_file(key_name, '/tmp/{}'.format(key_name))
+        s3_resource.Bucket(bucket).download_file(key_name, local_file)
         return 'ok'
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == '404':
@@ -32,14 +34,19 @@ def get_s3_object(bucket, key_name):
         else:
             return 'Error: {}'.format(str(e))
 
+
 def convert_to_html(file):
     try:
-        file_string = open(file).read()
+        file_open = open(file, 'r')
+        file_string = file_open.read()
+        file_open.close()
+
     except Exception as e:
         print('Error: {}'.format(str(e)))
         raise
-    
+
     return markdown.markdown(file_string)
+
 
 def upload_html(target_bucket, target_key, source_file):
     try:
@@ -48,12 +55,14 @@ def upload_html(target_bucket, target_key, source_file):
     except Exception as e:
         print('Error: {}'.format(str(e)))
         html_upload = 'fail'
-    
+
     return html_upload
 
 
 def handler(event, context):
     for record in event['Records']:
+        tmpdir = tempfile.mkdtemp()
+
         log_event = {}
 
         log_event['request_id'] = context.aws_request_id
@@ -71,10 +80,10 @@ def handler(event, context):
 
             size = check_s3_object_size(bucket_name, key_name)
 
-            download_status = get_s3_object(bucket_name, key_name)
+            local_file = os.path.join(tmpdir, key_name)
 
-            local_file = '/tmp/{}'.format(key_name)
-            
+            download_status = get_s3_object(bucket_name, key_name, local_file)
+
             if download_status == 'ok':
                 log_event['src_s3_download'] = 'ok'
                 key_bytes = os.stat(local_file).st_size
@@ -88,15 +97,20 @@ def handler(event, context):
 
             html_filename = os.path.splitext(key_name)[0] + '.html'
 
-            local_html_file = '/tmp/{}'.format(html_filename)
+            local_html_file = os.path.join(tmpdir, html_filename)
 
             with open(local_html_file, 'w') as outfile:
                 outfile.write(html)
 
-            html_upload = upload_html(target_bucket, html_filename, local_html_file)
+            outfile.close()
+
+            html_upload = upload_html(target_bucket,
+                                      html_filename,
+                                      local_html_file)
 
             if html_upload == 'ok':
-                log_event['dst_s3_object'] = 's3://{}/{}'.format(target_bucket, html_filename)
+                log_event['dst_s3_object'] = 's3://{}/{}'.format(target_bucket,
+                                                                 html_filename)
             else:
                 log_event['dst_s3_object'] = ''
 
@@ -106,5 +120,15 @@ def handler(event, context):
             log_event['error_msg'] = str(e)
             print(log_event)
             return 'fail'
+
+        finally:
+            filesToRemove = os.listdir(tmpdir)
+            for f in filesToRemove:
+                file_path = os.path.join(tmpdir, f)
+                print(f'Removing File: {file_path}')
+                os.remove(file_path)
+            print(f'Removing Folder: {tmpdir}')
+            os.rmdir(tmpdir)
+
         print(log_event)
         return 'ok'
