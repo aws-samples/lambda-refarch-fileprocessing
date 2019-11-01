@@ -14,19 +14,19 @@ In this example application we deliver the notes from an interview in markdown f
 ## Application Components
 
 ### Event Trigger
-Unlike batch processing, in this architecture we process each individual file as it arrives. To achive this we utilise [CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) and [CloudTrail](https://aws.amazon.com/cloudtrail/). We write a CloudWatch Events rule which checks for S3 PutObject API calls into our Source Bucket from CloudTrail. Everytime the PutObject API is called this creates a CloudTrail log which our rule translates into an event represented as a JSON object. In our rule we also define targets which our JSON event object is delivered to, which in this scenario is 4 seperate [SQS Queues](https://aws.amazon.com/sqs/) for 4 different worflows. Other target types include AWS Lambda Functions, Kinesis Data Streams, Simple Notification Service, Step Functions state machines, ECS tasks and more.
+Unlike batch processing, in this architecture we process each individual file as it arrives. To achive this we utilise [CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) and [CloudTrail](https://aws.amazon.com/cloudtrail/). We write a CloudWatch Events rule which checks for S3 PutObject API calls into our Source Bucket from CloudTrail. Everytime the PutObject API is called this creates a CloudTrail log which our rule translates into an event represented as a JSON object. In our rule we also define targets which our JSON event object is delivered to, which in this scenario is 4 seperate [SQS Queues](https://aws.amazon.com/sqs/) for 4 different worflows. Other target types include AWS Lambda Functions, Kinesis Data Streams, Simple Notification Service, Step Functions state machines, ECS tasks refer to [What is Amazon CloudWatch Events?](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) for more information about eligible targets.
 
 ### Conversion WorkFlow
 
 For this workflow the target of our JSON object decribing the S3 PutObject event is an SQS queue. Sending to SQS first rather than directly to Lambda allows for more control of Lambda invocations and better error handling.
 
-Lambda uses long polling to poll our queue and when messages are available it will read upto 5 batches and send them to our function. Lambda will automatically scale this process if more messages still remain on the queue. This allows us to simultaneously process upto 1000 batches.
+Lambda polls our queue and when messages are available it will send them to our function. Lambda can automatically scale with the number of messages on the queue. Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
 
 If our Lambda fails to process the messages we can configure SQS to send to a dead-letter queue for inspection and reprocessing.
 
 Once the function has the message this is parsed. The JSON event object contains information such as the S3 bucket and object key and object size.  
 
-Our business logic uses this information to retrieve the file from S3 and convert it to HTML finally writing out the new file to the HTML Bucket.
+Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new html file to the HTML Bucket.
 
 
 ### Sentiment Analysis Workflow
