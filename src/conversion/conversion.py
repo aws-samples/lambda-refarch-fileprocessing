@@ -80,6 +80,12 @@ def handler(event, context):
 
             size = check_s3_object_size(bucket_name, key_name)
 
+            if size >= max_object_size:
+                log_event['source_s3_object_size'] = size
+                log_event['error_msg'] = 'source s3 object too large'
+                print(log_event)
+                return 'fail'
+
             local_file = os.path.join(tmpdir, key_name)
 
             download_status = get_s3_object(bucket_name, key_name, local_file)
