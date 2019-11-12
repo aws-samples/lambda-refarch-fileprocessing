@@ -65,7 +65,7 @@ Next, run *sam package*.  This command takes your Lambda handler source code and
 ```bash
 sam package \
     --output-template-file packaged-template.yml \
-    --s3-bucket bucketname 
+    --s3-bucket bucketname
 ```
 
 **Note**
@@ -89,6 +89,7 @@ sam deploy \
     --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
     --region region \
+    --tags Project=lambda-refarch-fileprocessing
     --capabilities CAPABILITY_IAM
 ```
 

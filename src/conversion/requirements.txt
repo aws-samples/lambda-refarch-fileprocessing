@@ -1,2 +1,3 @@
+aws-lambda-logging
 boto3
 markdown

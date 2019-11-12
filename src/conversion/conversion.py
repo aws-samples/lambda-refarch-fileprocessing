@@ -1,17 +1,28 @@
 import json
+import logging
 import os
 import sys
 
+import aws_lambda_logging
 import boto3
 import botocore
 import markdown
 import tempfile
 
+
 max_object_size = 104857600  # 100MB = 104857600 bytes
+
+conversion_queue = os.getenv('CONVERSION_QUEUE')
 
 target_bucket = os.getenv('TARGET_BUCKET')
 
+log_level = os.getenv('LOG_LEVEL')
+
 s3_resource = boto3.resource('s3')
+
+sqs_client = boto3.client('sqs')
+
+log = logging.getLogger()
 
 
 def check_s3_object_size(bucket, key_name):
@@ -60,44 +71,46 @@ def upload_html(target_bucket, target_key, source_file):
 
 
 def handler(event, context):
+    aws_lambda_logging.setup(level=log_level,
+                             aws_request_id=context.aws_request_id)
+
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
 
-        log_event = {}
+        sqs_message_id = record['messageId']
+        sqs_event_source_arn = record['eventSourceARN']
 
-        log_event['request_id'] = context.aws_request_id
-        log_event['invoked_function_arn'] = context.invoked_function_arn
-        log_event['sqs_message_id'] = record['messageId']
-        log_event['sqs_event_source_arn'] = record['eventSourceARN']
+        sqs_receipt_handle = record['receiptHandle']
 
         try:
             json_body = json.loads(record['body'])
             request_params = json_body['detail']['requestParameters']
             bucket_name = request_params['bucketName']
             key_name = request_params['key']
-            log_event['source_s3_bucket_name'] = bucket_name
-            log_event['source_s3_key_name'] = key_name
 
             size = check_s3_object_size(bucket_name, key_name)
 
             if size >= max_object_size:
-                log_event['source_s3_object_size'] = size
-                log_event['error_msg'] = 'source s3 object too large'
-                print(log_event)
-                return 'fail'
+                log.error('''Source S3 object s3://{}/{} is larger ({} bytes)
+                than {} max object bytes'''.format(
+                               bucket_name,
+                               key_name,
+                               size,
+                               max_object_size))
+                raise Exception("Source S3 object too large")
 
             local_file = os.path.join(tmpdir, key_name)
 
             download_status = get_s3_object(bucket_name, key_name, local_file)
 
             if download_status == 'ok':
-                log_event['src_s3_download'] = 'ok'
                 key_bytes = os.stat(local_file).st_size
-                log_event['src_s3_download_bytes'] = key_bytes
+                src_s3_download_bytes = key_bytes
+                log.info("Success: Download to {} for conversion".format(
+                    local_file,
+                    key_bytes))
             else:
-                log_event['src_s3_download'] = download_status
-                log_event['src_s3_download_bytes'] = -1
-                sys.exit(1)
+                raise Exception("Fail to put object to {}".format(local_file))
 
             html = convert_to_html(local_file)
 
@@ -107,24 +120,36 @@ def handler(event, context):
 
             with open(local_html_file, 'w') as outfile:
                 outfile.write(html)
-
+                log.info("Success: Converted s3://{}/{} to {}".format(
+                    bucket_name,
+                    key_name,
+                    local_html_file))
             outfile.close()
 
             html_upload = upload_html(target_bucket,
                                       html_filename,
                                       local_html_file)
-
             if html_upload == 'ok':
-                log_event['dst_s3_object'] = 's3://{}/{}'.format(target_bucket,
-                                                                 html_filename)
+                '''If function could put the converted file to the S3 bucket then
+                remove message from the SQS queue'''
+                try:
+                    sqs_client.delete_message(
+                        QueueUrl=conversion_queue,
+                        ReceiptHandle=sqs_receipt_handle
+                    )
+                except Exception as e:
+                    raise Exception(str(e))
+                dst_s3_object = 's3://{}/{}'.format(target_bucket,
+                                                    html_filename)
+                log.info("Success: Uploaded {} to {}".format(
+                    local_html_file,
+                    dst_s3_object
+                ))
             else:
-                log_event['dst_s3_object'] = ''
-
-            log_event['dst_s3_upload'] = html_upload
+                raise Exception("Error: {}".format(str(e)))
 
         except Exception as e:
-            log_event['error_msg'] = str(e)
-            print(log_event)
+            raise Exception("Could not convert record: {}".format(str(e)))
             return 'fail'
 
         finally:
@@ -143,5 +168,4 @@ def handler(event, context):
             print(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
-        print(log_event)
         return 'ok'
