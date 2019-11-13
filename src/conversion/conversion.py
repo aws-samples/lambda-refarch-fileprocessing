@@ -29,21 +29,21 @@ def check_s3_object_size(bucket, key_name):
     try:
         size = s3_resource.Object(bucket, key_name).content_length
     except Exception as e:
-        print('Error: {}'.format(str(e)))
+        print(f'Error: {str(e)}')
         size = 'NaN'
 
-    return size
+    return(size)
 
 
 def get_s3_object(bucket, key_name, local_file):
     try:
         s3_resource.Bucket(bucket).download_file(key_name, local_file)
-        return 'ok'
+        return('ok')
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == '404':
-            return 'Error: s3://{}/{} does not exist'.format(bucket, key_name)
+            return(f'Error: s3://{bucket}/{key_name} does not exist')
         else:
-            return 'Error: {}'.format(str(e))
+            return(f'Error: {str(e)}')
 
 
 def convert_to_html(file):
@@ -56,7 +56,7 @@ def convert_to_html(file):
         print('Error: {}'.format(str(e)))
         raise
 
-    return markdown.markdown(file_string)
+    return(markdown.markdown(file_string))
 
 
 def upload_html(target_bucket, target_key, source_file):
@@ -67,7 +67,7 @@ def upload_html(target_bucket, target_key, source_file):
         print('Error: {}'.format(str(e)))
         html_upload = 'fail'
 
-    return html_upload
+    return(html_upload)
 
 
 def handler(event, context):
@@ -91,13 +91,9 @@ def handler(event, context):
             size = check_s3_object_size(bucket_name, key_name)
 
             if size >= max_object_size:
-                log.error('''Source S3 object s3://{}/{} is larger ({} bytes)
-                than {} max object bytes'''.format(
-                               bucket_name,
-                               key_name,
-                               size,
-                               max_object_size))
-                raise Exception("Source S3 object too large")
+                log.error(f'''Source S3 object s3://{bucket_name}/{key_name} is larger ({size} bytes)
+                than {max_object_size} (max object bytes)''')
+                raise Exception('Source S3 object too large')
 
             local_file = os.path.join(tmpdir, key_name)
 
@@ -105,12 +101,9 @@ def handler(event, context):
 
             if download_status == 'ok':
                 key_bytes = os.stat(local_file).st_size
-                src_s3_download_bytes = key_bytes
-                log.info("Success: Download to {} for conversion".format(
-                    local_file,
-                    key_bytes))
+                log.info(f'Success: Download to {local_file} for conversion')
             else:
-                raise Exception("Fail to put object to {}".format(local_file))
+                raise Exception(f'Fail to put object to {local_file}')
 
             html = convert_to_html(local_file)
 
@@ -120,10 +113,8 @@ def handler(event, context):
 
             with open(local_html_file, 'w') as outfile:
                 outfile.write(html)
-                log.info("Success: Converted s3://{}/{} to {}".format(
-                    bucket_name,
-                    key_name,
-                    local_html_file))
+                log.info(f'''Success: Converted s3://{bucket_name}/{key_name}
+                 to {local_html_file}''')
             outfile.close()
 
             html_upload = upload_html(target_bucket,
@@ -139,18 +130,14 @@ def handler(event, context):
                     )
                 except Exception as e:
                     raise Exception(str(e))
-                dst_s3_object = 's3://{}/{}'.format(target_bucket,
-                                                    html_filename)
-                log.info("Success: Uploaded {} to {}".format(
-                    local_html_file,
-                    dst_s3_object
-                ))
+                dst_s3_object = f's3://{target_bucket}/{html_filename}'
+                log.info(f'''Success: Uploaded {local_html_file} to
+                 {dst_s3_object}''')
             else:
-                raise Exception("Error: {}".format(str(e)))
+                raise Exception(f'Error: {str(e)}')
 
         except Exception as e:
-            raise Exception("Could not convert record: {}".format(str(e)))
-            return 'fail'
+            raise Exception(f'Could not convert record: {str(e)}')
 
         finally:
             filesToRemove = os.listdir(tmpdir)
@@ -168,4 +155,4 @@ def handler(event, context):
             print(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
-        return 'ok'
+        return('ok')
