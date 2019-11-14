@@ -33,7 +33,6 @@ def check_s3_object_size(bucket, key_name):
     try:
         size = s3_resource.Object(bucket, key_name).content_length
     except Exception as e:
-        # print('Error: {}'.format(str(e)))
         print(f'Error: {str(e)}')
         size = 'NaN'
 
@@ -107,6 +106,7 @@ def handler(event, context):
                 src_s3_download_bytes = key_bytes
                 log.info(f'Download to {local_file} for sentiment analysis')
             else:
+                log.error(f'Download failure to {local_file}')
                 raise Exception(f'Download failure to {local_file}')
 
             md_contents = open(local_file, 'r').read()
@@ -135,12 +135,15 @@ def handler(event, context):
                         ReceiptHandle=sqs_receipt_handle
                     )
                 except Exception as e:
-                    raise Exception(str(e))
+                    log.error(f'Could not remove message from queue: {str(e)}')
+                    raise Exception(f'''Could not remove message from queue:
+                    {str(e)}''')
 
                 log.info(f'''Put sentiment of {local_file} to
                  table {sentiment_table}''')
 
         except Exception as e:
+            log.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')
 
         finally:

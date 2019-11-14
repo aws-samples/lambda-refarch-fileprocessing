@@ -53,7 +53,7 @@ def convert_to_html(file):
         file_open.close()
 
     except Exception as e:
-        print('Error: {}'.format(str(e)))
+        print(f'Error: {str(e)}')
         raise
 
     return(markdown.markdown(file_string))
@@ -64,7 +64,7 @@ def upload_html(target_bucket, target_key, source_file):
         s3_resource.Object(target_bucket, target_key).upload_file(source_file)
         html_upload = 'ok'
     except Exception as e:
-        print('Error: {}'.format(str(e)))
+        print(f'Error: {str(e)}')
         html_upload = 'fail'
 
     return(html_upload)
@@ -103,6 +103,7 @@ def handler(event, context):
                 key_bytes = os.stat(local_file).st_size
                 log.info(f'Success: Download to {local_file} for conversion')
             else:
+                log.error(f'Fail to put object to {local_file}')
                 raise Exception(f'Fail to put object to {local_file}')
 
             html = convert_to_html(local_file)
@@ -129,14 +130,17 @@ def handler(event, context):
                         ReceiptHandle=sqs_receipt_handle
                     )
                 except Exception as e:
+                    log.error(f'{str(e)}')
                     raise Exception(str(e))
                 dst_s3_object = f's3://{target_bucket}/{html_filename}'
                 log.info(f'''Success: Uploaded {local_html_file} to
                  {dst_s3_object}''')
             else:
-                raise Exception(f'Error: {str(e)}')
+                log.error(f'{str(e)}')
+                raise Exception(f'{str(e)}')
 
         except Exception as e:
+            log.error(f'Could not convert record: {str(e)}')
             raise Exception(f'Could not convert record: {str(e)}')
 
         finally:
