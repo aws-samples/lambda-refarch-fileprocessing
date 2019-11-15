@@ -158,4 +158,4 @@ def handler(event, context):
             log.info(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
-        return('ok')
+    return('ok')

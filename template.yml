@@ -75,7 +75,6 @@ Resources:
       Queues:
         - !Ref ConversionQueue
         - !Ref SentimentQueue
-        - !Ref ReplayQueue
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -99,23 +98,12 @@ Resources:
             Condition:
               ArnEquals:
                 aws:SourceArn: !GetAtt FileProcessingRule.Arn
-          - 
-            Effect: Allow
-            Principal:
-              AWS: '*'
-            Action:
-              - sqs:SendMessage
-            Resource: !GetAtt ReplayQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt FileProcessingRule.Arn
 
   FileProcessingRule:
     Type: AWS::Events::Rule
     DependsOn:
       - ConversionQueue
       - SentimentQueue
-      - ReplayQueue
     Properties:
       Description: Rule to capture S3 PutObject events
       EventPattern:
@@ -137,8 +125,6 @@ Resources:
           Id: Convert
         - Arn: !GetAtt SentimentQueue.Arn
           Id: Sentiment
-        - Arn: !GetAtt ReplayQueue.Arn
-          Id: Replay
   
   ConversionQueue:
     Type: AWS::SQS::Queue
@@ -286,17 +272,3 @@ Resources:
     PrimaryKey:
       Name: 's3_object'
       Type: String
-  
-  ReplayQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: ReplayDlq
-    Properties:
-      VisibilityTimeout: 300
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ReplayDlq.Arn
-        maxReceiveCount: 5
-  
-  ReplayDlq:
-    Type: AWS::SQS::Queue
-    Properties:
-      VisibilityTimeout: 300
