@@ -29,7 +29,7 @@ def check_s3_object_size(bucket, key_name):
     try:
         size = s3_resource.Object(bucket, key_name).content_length
     except Exception as e:
-        print(f'Error: {str(e)}')
+        log.error(f'Error: {str(e)}')
         size = 'NaN'
 
     return(size)
@@ -53,7 +53,7 @@ def convert_to_html(file):
         file_open.close()
 
     except Exception as e:
-        print(f'Error: {str(e)}')
+        log.error(f'Could not open or read {file}: {str(e)}')
         raise
 
     return(markdown.markdown(file_string))
@@ -64,7 +64,7 @@ def upload_html(target_bucket, target_key, source_file):
         s3_resource.Object(target_bucket, target_key).upload_file(source_file)
         html_upload = 'ok'
     except Exception as e:
-        print(f'Error: {str(e)}')
+        log.error(f'Could not upload {source_file} to {target_bucket}: {str(e)}')
         html_upload = 'fail'
 
     return(html_upload)
@@ -148,15 +148,14 @@ def handler(event, context):
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                print(f'Removing File: {file_path}')
+                log.info(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
-                    print(e)
-                    print(f'Error while deleting file {file_path}')
+                    log.error(f'Could not delete file {file_path}: {str(e)}')
 
-            print(f'Removing Folder: {tmpdir}')
+            log.info(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
         return('ok')

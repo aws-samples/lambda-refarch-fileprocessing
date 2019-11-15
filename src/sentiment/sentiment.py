@@ -33,7 +33,7 @@ def check_s3_object_size(bucket, key_name):
     try:
         size = s3_resource.Object(bucket, key_name).content_length
     except Exception as e:
-        print(f'Error: {str(e)}')
+        log.error(f'Error: {str(e)}')
         size = 'NaN'
 
     return(size)
@@ -93,9 +93,13 @@ def handler(event, context):
             size = check_s3_object_size(bucket_name, key_name)
 
             if size >= max_object_size:
-                log.error(f'''Source S3 object s3://{bucket_name}/{key_name} is larger ({size} bytes)
-                than {max_object_size} (max object bytes)''')
-                raise Exception('Source S3 object too large')
+                max_err_msg = f'Source object is too large'
+                log.error(max_err_msg)
+                raise Exception(max_err_msg)
+
+            if size == 'NaN':
+                exc = f'Could not get size for s3://{bucket_name}/{key_name}'
+                raise Exception(exc)
 
             local_file = os.path.join(tmpdir, key_name)
 
@@ -119,8 +123,8 @@ def handler(event, context):
             overall_sentiment = sentiment['Sentiment']
             sentiment_score = sentiment['SentimentScore']
 
-            log.info(f'''Overall sentiment: {overall_sentiment}
-             ({sentiment_score})''')
+            sentiment_message = f'{overall_sentiment} ({sentiment_score})'
+            log.info(sentiment_message)
 
             source_s3_object = f's3://{bucket_name}/{key_name}'
 
@@ -135,12 +139,12 @@ def handler(event, context):
                         ReceiptHandle=sqs_receipt_handle
                     )
                 except Exception as e:
-                    log.error(f'Could not remove message from queue: {str(e)}')
-                    raise Exception(f'''Could not remove message from queue:
-                    {str(e)}''')
+                    err_msg = f'Could not remove message from queue: {str(e)}'
+                    log.error(err_msg)
+                    raise Exception(err_msg)
 
-                log.info(f'''Put sentiment of {local_file} to
-                 table {sentiment_table}''')
+                sentiment_db_msg = f'Put sentiment to {sentiment_table}'
+                log.info(sentiment_db_msg)
 
         except Exception as e:
             log.error(f'Could not get sentiment: {str(e)}')
@@ -151,15 +155,14 @@ def handler(event, context):
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                print(f'Removing File: {file_path}')
+                log.info(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
-                    print(e)
-                    print(f'Error while deleting file {file_path}')
+                    log.error(f'Could not delete file {file_path}: {str(e)}')
 
-            print(f'Removing Folder: {tmpdir}')
+            log.info(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
-        return('ok')
+    return('ok')
