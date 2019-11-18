@@ -89,10 +89,12 @@ sam deploy \
     --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
     --region region \
-    --tags Project=lambda-refarch-fileprocessing
+    --tags Project=lambda-refarch-fileprocessing \
+    --parameter-overrides AlarmRecipientEmailAddress=<your email address> \
     --capabilities CAPABILITY_IAM
 ```
 
+You will receive an email asking you to confirm subscription to the `lambda-file-refarch-AlarmTopic` SNS topic that will receive alerts should either the `ConversionDlq` SQS queue or `SentimentDlq` SQS queue receive messages.
 
 ## Testing the Example
 
