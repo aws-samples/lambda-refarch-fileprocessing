@@ -1,0 +1,274 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: SAM template to create file processing architecture represented at https://github.com/aws-samples/lambda-refarch-fileprocessing.
+
+Parameters:
+  ConversionLogLevel:
+    Type: String
+    Default: "INFO"
+    AllowedValues:
+      - "INFO"
+      - "DEBUG"
+
+  SentimentLogLevel:
+    Type: String
+    Default: "INFO"
+    AllowedValues:
+      - "INFO"
+      - "DEBUG"
+
+Resources:
+  InputBucket:
+    Type: AWS::S3::Bucket
+  
+  CloudTrailBucket:
+    Type: AWS::S3::Bucket
+  
+  InputBucketTrail:
+    DependsOn: CloudTrailBucketPolicy
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      S3BucketName: !Ref CloudTrailBucket
+      EventSelectors: 
+        - DataResources:
+          - Type: 'AWS::S3::Object'
+            Values:
+              - !Sub |-
+                arn:aws:s3:::${InputBucket}/
+          IncludeManagementEvents: false
+          ReadWriteType: WriteOnly
+      IsLogging: true
+  
+  CloudTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: CloudTrailBucket
+    Properties: 
+      Bucket: !Ref CloudTrailBucket
+      PolicyDocument: 
+          Version: "2012-10-17"
+          Statement: 
+            - 
+              Sid: "AWSCloudTrailAclCheck"
+              Effect: "Allow"
+              Principal: 
+                Service: "cloudtrail.amazonaws.com"
+              Action: "s3:GetBucketAcl"
+              Resource: !Sub |-
+                  arn:aws:s3:::${CloudTrailBucket}
+            - 
+              Sid: "AWSCloudTrailWrite"
+              Effect: "Allow"
+              Principal: 
+                Service: "cloudtrail.amazonaws.com"
+              Action: "s3:PutObject"
+              Resource:
+                !Sub |-
+                  arn:aws:s3:::${CloudTrailBucket}/AWSLogs/${AWS::AccountId}/*
+              Condition: 
+                StringEquals:
+                  s3:x-amz-acl: "bucket-owner-full-control"
+
+  FileProcessingQueuePolicy:
+    # https://forums.aws.amazon.com/message.jspa?messageID=743094
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ConversionQueue
+        - !Ref SentimentQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - 
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt ConversionQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt FileProcessingRule.Arn
+          - 
+            Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt SentimentQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt FileProcessingRule.Arn
+
+  FileProcessingRule:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - ConversionQueue
+      - SentimentQueue
+    Properties:
+      Description: Rule to capture S3 PutObject events
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - AWS API Call via CloudTrail
+        detail:
+          eventSource:
+            - s3.amazonaws.com
+          eventName:
+            - PutObject
+          requestParameters:
+            bucketName:
+              - !Ref InputBucket
+      State: 'ENABLED'
+      Targets:
+        - Arn: !GetAtt ConversionQueue.Arn
+          Id: Convert
+        - Arn: !GetAtt SentimentQueue.Arn
+          Id: Sentiment
+  
+  ConversionQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ConversionDlq
+    Properties:
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConversionDlq.Arn
+        maxReceiveCount: 5
+
+  ConversionDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+          
+  ConversionFunction:
+    Type: 'AWS::Serverless::Function'
+    DependsOn: ConversionTargetBucket
+    Properties:
+      Description: Convert and store HTML representation of uploaded S3 objects
+      Handler: conversion.handler
+      Runtime: python3.6
+      CodeUri: ./src/conversion/
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              !GetAtt ConversionQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: InputBucket
+                    - '/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: ConversionTargetBucket
+                    - '/*'
+      Environment:
+        Variables:
+          TARGET_BUCKET: !Ref ConversionTargetBucket
+          CONVERSION_QUEUE: !Ref ConversionQueue
+          LOG_LEVEL: !Ref ConversionLogLevel
+      Events:
+        ConversionQueueReaderEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ConversionQueue.Arn
+            BatchSize: 10
+
+  ConversionTargetBucket:
+    Type: AWS::S3::Bucket
+
+  SentimentQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: SentimentDlq
+    Properties:
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SentimentDlq.Arn
+        maxReceiveCount: 5
+
+  SentimentDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+
+  SentimentFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Description: Detect and store sentiment from uploaded S3 objects
+      Handler: sentiment.handler
+      Runtime: python3.6
+      CodeUri: ./src/sentiment/
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: InputBucket
+                    - '/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:DetectSentiment
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 
+                - dynamodb:PutItem
+              Resource: !GetAtt SentimentTable.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:DeleteMessage
+              Resource: !GetAtt SentimentQueue.Arn
+      Environment:
+        Variables:
+          SENTIMENT_TABLE: !Ref SentimentTable
+          SENTIMENT_QUEUE: !Ref SentimentQueue
+          LOG_LEVEL: !Ref SentimentLogLevel
+      Events:
+        SentimentQueueReaderEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SentimentQueue.Arn
+            BatchSize: 10
+  
+  SentimentTable:
+    Type: AWS::Serverless::SimpleTable
+    TableName: ref-arch-filearch-document-sentiment
+    PrimaryKey:
+      Name: 's3_object'
+      Type: String

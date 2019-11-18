@@ -1,1 +1,2 @@
+aws-lambda-logging
 boto3
