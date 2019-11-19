@@ -288,35 +288,37 @@ Resources:
   ConversionDlqAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: Conversion DLQ messages
+      AlarmDescription: Alarm if Conversion DLQ queue depth is more than 1 message
       AlarmActions:
-      - Ref: AlarmTopic
+        - Ref: AlarmTopic
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: '60'
-      EvaluationPeriods: '1'
-      Threshold: '1'
-      ComparisonOperator: GreaterThanThreshold
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
       Dimensions:
-      - Name: QueueName
-        Value:
-          Ref: ConversionDlq
+        - Name: QueueName
+          Value:
+            Ref: ConversionDlq
 
   SentimentDlqAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: Sentiment DLQ messages
+      AlarmDescription: Alarm if Sentiment DLQ queue depth is more than 1 message
       AlarmActions:
-      - Ref: AlarmTopic
+        - Ref: AlarmTopic
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
       Statistic: Sum
-      Period: '60'
-      EvaluationPeriods: '1'
-      Threshold: '1'
-      ComparisonOperator: GreaterThanThreshold
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
       Dimensions:
-      - Name: QueueName
-        Value:
-          Ref: SentimentDlq
+        - Name: QueueName
+          Value:
+            Ref: SentimentDlq
