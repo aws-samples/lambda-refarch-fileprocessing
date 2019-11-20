@@ -17,6 +17,11 @@ Parameters:
       - "INFO"
       - "DEBUG"
 
+  AlarmRecipientEmailAddress:
+    Type: String
+    AllowedPattern: '[^\s@]+@[^\s@]+\.[^\s@]+'
+    ConstraintDescription: Enter a valid email address
+
 Resources:
   InputBucket:
     Type: AWS::S3::Bucket
@@ -272,3 +277,46 @@ Resources:
     PrimaryKey:
       Name: 's3_object'
       Type: String
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlarmRecipientEmailAddress
+
+  ConversionDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if Conversion DLQ has any messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConversionDlq.QueueName
+
+  SentimentDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if Sentiment DLQ has any messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SentimentDlq.QueueName
