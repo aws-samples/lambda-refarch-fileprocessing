@@ -12,8 +12,8 @@ import botocore
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
 
-sentiment_table = os.getenv('SENTIMENT_TABLE')
-sentiment_queue = os.getenv('SENTIMENT_QUEUE')
+s_table = os.getenv('s_table')
+s_queue = os.getenv('s_queue')
 
 log_level = os.getenv('LOG_LEVEL')
 
@@ -22,7 +22,7 @@ comprehend_client = boto3.client('comprehend')
 s3_resource = boto3.resource('s3')
 
 dynamodb_resource = boto3.resource('dynamodb')
-table = dynamodb_resource.Table(sentiment_table)
+table = dynamodb_resource.Table(s_table)
 
 sqs_client = boto3.client('sqs')
 
@@ -135,7 +135,7 @@ def handler(event, context):
                  remove message from SQS queue.'''
                 try:
                     sqs_client.delete_message(
-                        QueueUrl=sentiment_queue,
+                        QueueUrl=s_queue,
                         ReceiptHandle=sqs_receipt_handle
                     )
                 except Exception as e:
@@ -143,9 +143,13 @@ def handler(event, context):
                     log.error(err_msg)
                     raise Exception(err_msg)
 
-                sentiment_db_msg = f'Put sentiment to {sentiment_table}'
+                sentiment_db_msg = f'Put sentiment to {s_table}'
                 log.info(sentiment_db_msg)
-
+            else:
+                db_put_error_msg = f'Could not put sentiment to {s_table}: '
+                db_put_error_msg += f'{put_sentiment_result}'
+                log.error(db_put_error_msg)
+                raise Exception(db_put_error_msg)
         except Exception as e:
             log.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')
