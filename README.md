@@ -2,7 +2,7 @@
 
 The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. 
 
-In this example application we deliver the notes from an interview in markdown format into S3 and we utilise CloudWatch Events to trigger multiple processing flows.
+In this example application we deliver the notes from an interview in Markdown format to S3.  CloudWatch Events is used to trigger multiple processing flows - one to convert and persist Markdown files to HTML and another to detect and persist sentiment.
 
 ## Architectural Diagram
 
@@ -11,36 +11,29 @@ In this example application we deliver the notes from an interview in markdown f
 ## Application Components
 
 ### Event Trigger
-Unlike batch processing, in this architecture we process each individual file as it arrives. To achive this we utilise [CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) and [CloudTrail](https://aws.amazon.com/cloudtrail/). We write a CloudWatch Events rule which checks for S3 PutObject API calls into our Source Bucket from CloudTrail. Everytime the PutObject API is called this creates a CloudTrail log which our rule translates into an event represented as a JSON object. In our rule we also define targets which our JSON event object is delivered to, which in this scenario is 4 seperate [SQS Queues](https://aws.amazon.com/sqs/) for 4 different worflows. Other target types include AWS Lambda Functions, Kinesis Data Streams, Simple Notification Service, Step Functions state machines, ECS tasks refer to [What is Amazon CloudWatch Events?](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) for more information about eligible targets.
 
-### Conversion WorkFlow
+Unlike batch processing, in this architecture we process each individual file as it arrives. To achive this we utilise [CloudWatch Events](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) and [CloudTrail](https://aws.amazon.com/cloudtrail/). A CloudWatch Events rule  checks for S3 PutObject API calls into our Source Bucket using CloudTrail data. CloudTrail records when PutObject API is called.  Our rule translates this record into an event, represented as a JSON object. We also define targets in our rule and deliver our JSON event to 2 seperate [SQS Queues](https://aws.amazon.com/sqs/), representing 2 different worflows. Other target types include AWS Lambda Functions, Kinesis Data Streams, Simple Notification Service, Step Functions state machines, and ECS tasks. Refer to [What is Amazon CloudWatch Events?](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/WhatIsCloudWatchEvents.html) for more information about eligible targets.
 
-For this workflow the target of our JSON object decribing the S3 PutObject event is an SQS queue. Sending to SQS first rather than directly to Lambda allows for more control of Lambda invocations and better error handling.
+### Conversion Workflow
 
-Lambda polls our queue and when messages are available it will send them to our function. Lambda can automatically scale with the number of messages on the queue. Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
+We target a SQS queue for this workflow. Sending the JSON event to SQS first rather than directly to Lambda allows for more control of Lambda invocations and better error handling.
 
-If our Lambda fails to process the messages we can configure SQS to send to a dead-letter queue for inspection and reprocessing.
+The Lambda service polls our queue. When messages are available it will send them to our function. Lambda can automatically scale with the number of messages on the queue. Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
 
-Once the function has the message this is parsed. The JSON event object contains information such as the S3 bucket and object key and object size.  
+If our Conversion Lambda function fails to process the messages, SQS sends the event to a dead-letter queue (DLQ) for inspection and reprocessing. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Conversion DLQ.
 
-Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new html file to the HTML Bucket.
+Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function execution environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new html file to the HTML Bucket.
 
 
 ### Sentiment Analysis Workflow
 
-Here we are using our AI/ML service [Amazon Comprehend](https://aws.amazon.com/comprehend/) which is a machine learning powered service that makes it easy to find insights and relationships in text. We can use the Sentiment Analysis API in order to understand if the questions the interviewer asked had positive or negative responses.
+We are using AWS' AI/ML service [Amazon Comprehend](https://aws.amazon.com/comprehend/) which is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
 
-This workflow uses the same SQS to Lambda Function pattern as the coversion workflow. Here our business logic downloads the file and extracts the content of the file and sends it to the Comprehend Sentiment Analysis API. This returns a Sentiment and a confidence Score which Describes the level of confidence that Amazon Comprehend has in the accuracy of its detection of sentiments.
+The Sentiment workflow uses the same SQS-to-Lambda Function pattern as the Coversion workflow. Our function downloads the interview file, extracts the content, and sends it to the Comprehend Sentiment Analysis API. This returns a Sentiment and a confidence score which describes the level of confidence that Amazon Comprehend has in the accuracy of its detection of sentiments.
 
-Once we have our sentiment we persist the result to our [DynamoDB](https://aws.amazon.com/dynamodb/) table. 
+Once we have our sentiment we persist the result to our [DynamoDB](https://aws.amazon.com/dynamodb/) table.
 
-
-### Search Indexing Workflow
-TODO
-
-### Replay Workflow
-
-TODO
+If our Sentiment Lambda function fails to process the messages, SQS sends the event to a dead-letter queue (DLQ) for inspection and reprocessing. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
 
 
 ## Running the Example
@@ -52,7 +45,7 @@ You can use the provided [AWS SAM template](./template.yml) to launch a stack th
 
 #### Build
 
-The AWS SAM CLI comes with abstractions for a number of Lambda runtimes to build your dependencies, and copies the source code into staging folders so that everything is ready to be packaged and deployed. The *sam build* command builds any dependencies that your application has, and copies your application source code to folders under aws-sam/build to be zipped and uploaded to Lambda. 
+The AWS SAM CLI comes with abstractions for a number of Lambda runtimes to build your dependencies, and copies the source code into staging folders so that everything is ready to be packaged and deployed. The *sam build* command builds any dependencies that your application has, and copies your application source code to folders under *.aws-sam/build* to be zipped and uploaded to Lambda. 
 
 ```bash
 sam build --use-container
@@ -170,13 +163,13 @@ creates the following resources:
 
 - **CloudTrailBucketPolicy** - A S3 policy which permits the AWS CloudTrail service to write data to the **CloudTrailBucket**.
 
-- **FileProcessingQueuePolicy** - A SQS policy that allows the **FileProcessingRule** to publish events to the **ConversionQueue**, **SentimentQueue**, and the **ReplayQueue**.
+- **FileProcessingQueuePolicy** - A SQS policy that allows the **FileProcessingRule** to publish events to the **ConversionQueue** and  **SentimentQueue**.
 
-- **FileProcessingRule** - A CloudWatch Events Rule that monitors CloudTrail `PubObject` events from the **InputBucket**.
+- **FileProcessingRule** - A CloudWatch Events Rule that monitors CloudTrail `PutObject` events to the **InputBucket**.
 
-- **ConversionQueue** - A SQS queue that is used to store events for conversion from markdown to HTML.
+- **ConversionQueue** - A SQS queue that is used to store events for conversion from Markdown to HTML.
 
-- **ConversionDlq** - TBD.
+- **ConversionDlq** - A SQS queue that is used to capture messages that cannot be processed by the **ConversionFunction**.  The *RedrivePolicy* on the **ConversionQueue** is used to manage how traffic makes it to this queue.
 
 - **ConversionFunction** - A Lambda function that takes the input file, converts it to HTML, and stores the resulting file to **ConversionTargetBucket**.
 
@@ -184,11 +177,17 @@ creates the following resources:
 
 - **SentimentQueue** - A SQS queue that is used to store events for sentiment analysis processing.
 
-- **SentimentDlq** - TBD.
+- **SentimentDlq** - A SQS queue that is used to capture messages that cannot be processed by the **SentimentFunction**.  The *RedrivePolicy* on the **SentimentQueue** is used to manage how traffic makes it to this queue.
 
 - **SentimentFunction** - A Lambda function that takes the input file, performs sentiment analysis, and stores the output to the **SentimentTable**.
 
 - **SentimentTable** - A DynamoDB table that stores the input file along with the sentiment.
+
+- **AlarmTopic** - A SNS topic that has an email as a subscriber.  This topic is used to receive alarms from the **ConversionDlqAlarm** and **SentimentDlqAlarm**.
+
+- **ConversionDlqAlarm** - A CloudWatch Alarm that detects when there there are any messages sent to the **ConvesionDlq** within a 1 minute period and sends notification to the **AlarmTopic**.
+
+- **SentimentDlqAlarm** - A CloudWatch Alarm that detects when there there are any messages sent to the **SentimentDlq** within a 1 minute period and sends notification to the **AlarmTopic**.
 
 
 ## License

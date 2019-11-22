@@ -12,8 +12,8 @@ import botocore
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
 
-s_table = os.getenv('s_table')
-s_queue = os.getenv('s_queue')
+s_table = os.getenv('SENTIMENT_TABLE')
+s_queue = os.getenv('SENTIMENT_QUEUE')
 
 log_level = os.getenv('LOG_LEVEL')
 
