@@ -153,6 +153,7 @@ Resources:
       Handler: conversion.handler
       Runtime: python3.6
       CodeUri: ./src/conversion/
+      Tracing: Active
       Policies:
         - SQSPollerPolicy:
             QueueName:
@@ -174,6 +175,16 @@ Resources:
               Action:
                 - s3:ListBucket
               Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+                - xray:GetSamplingStatisticSummaries
+              Resource: '*'
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -220,6 +231,7 @@ Resources:
       Handler: sentiment.handler
       Runtime: python3.6
       CodeUri: ./src/sentiment/
+      Tracing: Active
       Policies:
         - SQSPollerPolicy:
             QueueName:
@@ -241,6 +253,16 @@ Resources:
               Action:
                 - s3:ListBucket
               Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+                - xray:GetSamplingStatisticSummaries
+              Resource: '*'
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
