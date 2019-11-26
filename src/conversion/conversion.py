@@ -4,10 +4,14 @@ import os
 import sys
 
 import aws_lambda_logging
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.core import patch_all
 import boto3
 import botocore
 import markdown
 import tempfile
+
+patch_all()
 
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
@@ -26,48 +30,143 @@ log = logging.getLogger()
 
 
 def check_s3_object_size(bucket, key_name):
+    """Take in a bucket and key and return the number of bytes
+
+    Parameters
+    ----------
+    bucket: string, required
+        Bucket name where object is stored
+
+    key_name: string, required
+        Key name of object
+
+    Returns
+    -------
+    size: integer
+        Size of key_name in bucket
+    """
+
+    xray_recorder.begin_subsegment('## get_object_size')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+
     try:
         size = s3_resource.Object(bucket, key_name).content_length
+        subsegment.put_metadata('object_size', size)
     except Exception as e:
         log.error(f'Error: {str(e)}')
         size = 'NaN'
+        subsegment.put_metadata('object_size', size)
 
+    xray_recorder.end_subsegment()
     return(size)
 
 
 def get_s3_object(bucket, key_name, local_file):
+    """Download object in S3 to local file
+
+    Parameters
+    ----------
+    bucket: string, required
+        Bucket name where object is stored
+
+    key_name: string, required
+        Key name of object
+
+    local_file: string, required
+
+    Returns
+    -------
+    result: string
+        Result of operation ('ok' or exception)
+    """
+
+    xray_recorder.begin_subsegment('## get_object_to_convert')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+
     try:
         s3_resource.Bucket(bucket).download_file(key_name, local_file)
-        return('ok')
+        result = 'ok'
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
     except botocore.exceptions.ClientError as e:
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
         if e.response['Error']['Code'] == '404':
-            return(f'Error: s3://{bucket}/{key_name} does not exist')
+            result = f'Error: s3://{bucket}/{key_name} does not exist'
         else:
-            return(f'Error: {str(e)}')
+            result = f'Error: {str(e)}'
+
+    xray_recorder.end_subsegment()
+    return(result)
 
 
 def convert_to_html(file):
+    """Convert Markdown in file to HTML
+
+    Parameters
+    ----------
+    file: string, required
+        Local file to be converted
+
+    Returns
+    -------
+    string
+        Resulting HTML5
+    """
+
+    xray_recorder.begin_subsegment('## convert_to_html')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('file', file)
+
     try:
         file_open = open(file, 'r')
         file_string = file_open.read()
+        subsegment.put_annotation('MARKDOWN_CONVERSION', 'SUCCESS')
+        xray_recorder.end_subsegment()
         file_open.close()
-
+        return(markdown.markdown(file_string))
     except Exception as e:
         log.error(f'Could not open or read {file}: {str(e)}')
+        subsegment.put_annotation('MARKDOWN_CONVERSION', 'FAILURE')
+        xray_recorder.end_subsegment()
         raise
 
-    return(markdown.markdown(file_string))
 
+def upload_html(bucket, key, source_file):
+    """Upload local file to S3 bucket
 
-def upload_html(target_bucket, target_key, source_file):
+    Parameters
+    ----------
+    target_bucket: string, required
+        S3 bucket where object is stored
+
+    key_name: string, required
+        Key name of object
+
+    source_file: string, required
+        Name of local file
+
+    Returns
+    -------
+    result: string
+        Result of operation ('ok' or exception)
+    """
+
+    xray_recorder.begin_subsegment('## upload_html_to_s3')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('object', f's3://{bucket}/{key}')
+
     try:
-        s3_resource.Object(target_bucket, target_key).upload_file(source_file)
-        html_upload = 'ok'
+        s3_resource.Object(bucket, key).upload_file(source_file)
+        result = 'ok'
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
     except Exception as e:
-        log.error(f'Could not upload {source_file} to {target_bucket}: {str(e)}')
-        html_upload = 'fail'
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
+        log.error(f'Could not upload {source_file} to {bucket}: {str(e)}')
+        result = 'fail'
 
-    return(html_upload)
+    xray_recorder.end_subsegment()
+    return(result)
 
 
 def handler(event, context):
@@ -91,9 +190,11 @@ def handler(event, context):
             size = check_s3_object_size(bucket_name, key_name)
 
             if size >= max_object_size:
-                log.error(f'''Source S3 object s3://{bucket_name}/{key_name} is larger ({size} bytes)
-                than {max_object_size} (max object bytes)''')
+                error_message = f'Source S3 object s3://{bucket_name}/{key_name} is larger '
+                error_message += f'than {max_object_size} (max object bytes)'
+                log.error(error_message)
                 raise Exception('Source S3 object too large')
+                sys.exit(1)
 
             local_file = os.path.join(tmpdir, key_name)
 
@@ -105,6 +206,7 @@ def handler(event, context):
             else:
                 log.error(f'Fail to put object to {local_file}')
                 raise Exception(f'Fail to put object to {local_file}')
+                sys.exit(1)
 
             html = convert_to_html(local_file)
 
@@ -132,17 +234,20 @@ def handler(event, context):
                 except Exception as e:
                     log.error(f'{str(e)}')
                     raise Exception(str(e))
+                    sys.exit(1)
                 dst_s3_object = f's3://{target_bucket}/{html_filename}'
-                log.info(f'''Success: Uploaded {local_html_file} to
-                 {dst_s3_object}''')
+                success_message = f'Success: Uploaded {local_html_file} to '
+                success_message += f'{dst_s3_object}'
+                log.info(success_message)
             else:
-                log.error(f'{str(e)}')
-                raise Exception(f'{str(e)}')
-
+                error_message = f'Could not upload file to '
+                error_message += f'{dst_s3_object}: {str(e)}'
+                log.error(error_message)
+                raise Exception(error_message)
         except Exception as e:
             log.error(f'Could not convert record: {str(e)}')
             raise Exception(f'Could not convert record: {str(e)}')
-
+            sys.exit(1)
         finally:
             filesToRemove = os.listdir(tmpdir)
 

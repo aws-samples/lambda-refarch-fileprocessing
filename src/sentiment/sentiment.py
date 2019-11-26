@@ -6,8 +6,12 @@ import sys
 import tempfile
 
 import aws_lambda_logging
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.core import patch_all
 import boto3
 import botocore
+
+patch_all()
 
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
@@ -30,27 +34,96 @@ log = logging.getLogger()
 
 
 def check_s3_object_size(bucket, key_name):
+    """Take in a bucket and key and return the number of bytes
+
+    Parameters
+    ----------
+    bucket: string, required
+        Bucket name where object is stored
+
+    key_name: string, required
+        Key name of object
+
+    Returns
+    -------
+    size: integer
+        Size of key_name in bucket
+    """
+
+    xray_recorder.begin_subsegment('## get_object_size')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+
     try:
         size = s3_resource.Object(bucket, key_name).content_length
+        subsegment.put_metadata('object_size', size)
     except Exception as e:
         log.error(f'Error: {str(e)}')
         size = 'NaN'
+        subsegment.put_metadata('object_size', size)
 
+    xray_recorder.end_subsegment()
     return(size)
 
 
 def get_s3_object(bucket, key_name, local_file):
+    """Download object in S3 to local file
+
+    Parameters
+    ----------
+    bucket: string, required
+        Bucket name where object is stored
+
+    key_name: string, required
+        Key name of object
+
+    local_file: string, required
+
+    Returns
+    -------
+    result: string
+        Result of operation ('ok' or exception)
+    """
+
+    xray_recorder.begin_subsegment('## get_object_to_analyze')
+    subsegment = xray_recorder.current_subsegment()
+    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+
     try:
         s3_resource.Bucket(bucket).download_file(key_name, local_file)
-        return('ok')
+        result = 'ok'
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
     except botocore.exceptions.ClientError as e:
+        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
         if e.response['Error']['Code'] == '404':
-            return(f'Error: s3://{bucket}/{key_name} does not exist')
+            result = f'Error: s3://{bucket}/{key_name} does not exist'
         else:
-            return(f'Error: {str(e)}')
+            result = f'Error: {str(e)}'
+
+    xray_recorder.end_subsegment()
+    return(result)
 
 
 def put_sentiment(s3_object, sentiment):
+    """Put the sentiment of a object to DynamoDB
+
+    Parameters
+    ----------
+    s3_object: string, required
+        Location of the S3 object to analyze
+
+    sentiment: dict, required
+        Sentiment dictionary from Comprehend
+
+    Returns
+    -------
+    result: string
+        Result of operation ('ok' or exception)
+    """
+
+    xray_recorder.begin_subsegment('## put_sentiment_to_db')
+    subsegment = xray_recorder.current_subsegment()
+
     try:
         response = table.put_item(
             Item={
@@ -65,10 +138,12 @@ def put_sentiment(s3_object, sentiment):
         )
 
         result = 'ok'
-
+        subsegment.put_annotation('PUT_SENTIMENT_TO_DB', 'SUCCESS')
     except Exception as e:
         result = str(e)
+        subsegment.put_annotation('PUT_SENTIMENT_TO_DB', 'FAILURE')
 
+    xray_recorder.end_subsegment()
     return(result)
 
 
@@ -93,13 +168,17 @@ def handler(event, context):
             size = check_s3_object_size(bucket_name, key_name)
 
             if size >= max_object_size:
-                max_err_msg = f'Source object is too large'
-                log.error(max_err_msg)
-                raise Exception(max_err_msg)
+                error_message = f'Source S3 object '
+                error_message += f's3://{bucket_name}/{key_name} is larger '
+                error_message += f'than {max_object_size} (max object bytes)'
+                log.error(error_message)
+                raise Exception(error_message)
+                sys.exit(1)
 
             if size == 'NaN':
                 exc = f'Could not get size for s3://{bucket_name}/{key_name}'
                 raise Exception(exc)
+                sys.exit(1)
 
             local_file = os.path.join(tmpdir, key_name)
 
@@ -112,6 +191,7 @@ def handler(event, context):
             else:
                 log.error(f'Download failure to {local_file}')
                 raise Exception(f'Download failure to {local_file}')
+                sys.exit(1)
 
             md_contents = open(local_file, 'r').read()
 
@@ -142,6 +222,7 @@ def handler(event, context):
                     err_msg = f'Could not remove message from queue: {str(e)}'
                     log.error(err_msg)
                     raise Exception(err_msg)
+                    sys.exit(1)
 
                 sentiment_db_msg = f'Put sentiment to {s_table}'
                 log.info(sentiment_db_msg)
@@ -150,10 +231,11 @@ def handler(event, context):
                 db_put_error_msg += f'{put_sentiment_result}'
                 log.error(db_put_error_msg)
                 raise Exception(db_put_error_msg)
+                sys.exit(1)
         except Exception as e:
             log.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')
-
+            sys.exit(1)
         finally:
             filesToRemove = os.listdir(tmpdir)
 
