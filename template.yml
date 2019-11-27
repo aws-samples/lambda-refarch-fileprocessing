@@ -135,7 +135,7 @@ Resources:
     Type: AWS::SQS::Queue
     DependsOn: ConversionDlq
     Properties:
-      VisibilityTimeout: 20
+      VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ConversionDlq.Arn
         maxReceiveCount: 5
@@ -154,7 +154,7 @@ Resources:
       Runtime: python3.6
       CodeUri: ./src/conversion/
       MemorySize: 256
-      Timeout: 3
+      Timeout: 10
       Tracing: Active
       Policies:
         - SQSPollerPolicy:
@@ -216,7 +216,7 @@ Resources:
     Type: AWS::SQS::Queue
     DependsOn: SentimentDlq
     Properties:
-      VisibilityTimeout: 20
+      VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SentimentDlq.Arn
         maxReceiveCount: 5
@@ -233,8 +233,8 @@ Resources:
       Handler: sentiment.handler
       Runtime: python3.6
       CodeUri: ./src/sentiment/
-      MemorySize: 128
-      Timeout: 3
+      MemorySize: 256
+      Timeout: 10
       Tracing: Active
       Policies:
         - SQSPollerPolicy:
