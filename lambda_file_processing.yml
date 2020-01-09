@@ -6,7 +6,7 @@ Resources:
     Type: 'AWS::Serverless::Function'
     Properties:
       Handler: data-processor-1.handler
-      Runtime: nodejs6.10
+      Runtime: nodejs10.x
       CodeUri: ./src/data-processor-1/
       Role: !GetAtt [LambdaExecutionRole, Arn]
       
@@ -14,7 +14,7 @@ Resources:
     Type: 'AWS::Serverless::Function'
     Properties:
       Handler: data-processor-2.handler
-      Runtime: nodejs6.10
+      Runtime: nodejs10.x
       CodeUri: ./src/data-processor-2/
       Role: !GetAtt [LambdaExecutionRole, Arn]
 
