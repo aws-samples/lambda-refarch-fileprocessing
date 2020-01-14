@@ -142,6 +142,9 @@ def put_sentiment(s3_object, sentiment):
     except Exception as e:
         result = str(e)
         subsegment.put_annotation('PUT_SENTIMENT_TO_DB', 'FAILURE')
+        result = f'Error: {str(e)}'
+        log.error(response)
+
 
     xray_recorder.end_subsegment()
     return(result)
@@ -153,9 +156,6 @@ def handler(event, context):
 
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
-
-        sqs_message_id = record['messageId']
-        sqs_event_source_arn = record['eventSourceARN']
 
         sqs_receipt_handle = record['receiptHandle']
 
@@ -173,25 +173,20 @@ def handler(event, context):
                 error_message += f'than {max_object_size} (max object bytes)'
                 log.error(error_message)
                 raise Exception(error_message)
-                sys.exit(1)
 
             if size == 'NaN':
                 exc = f'Could not get size for s3://{bucket_name}/{key_name}'
                 raise Exception(exc)
-                sys.exit(1)
 
             local_file = os.path.join(tmpdir, key_name)
 
             download_status = get_s3_object(bucket_name, key_name, local_file)
 
             if download_status == 'ok':
-                key_bytes = os.stat(local_file).st_size
-                src_s3_download_bytes = key_bytes
                 log.info(f'Download to {local_file} for sentiment analysis')
             else:
                 log.error(f'Download failure to {local_file}')
                 raise Exception(f'Download failure to {local_file}')
-                sys.exit(1)
 
             md_contents = open(local_file, 'r').read()
 
@@ -222,7 +217,6 @@ def handler(event, context):
                     err_msg = f'Could not remove message from queue: {str(e)}'
                     log.error(err_msg)
                     raise Exception(err_msg)
-                    sys.exit(1)
 
                 sentiment_db_msg = f'Put sentiment to {s_table}'
                 log.info(sentiment_db_msg)
@@ -231,11 +225,9 @@ def handler(event, context):
                 db_put_error_msg += f'{put_sentiment_result}'
                 log.error(db_put_error_msg)
                 raise Exception(db_put_error_msg)
-                sys.exit(1)
         except Exception as e:
             log.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')
-            sys.exit(1)
         finally:
             filesToRemove = os.listdir(tmpdir)
 
