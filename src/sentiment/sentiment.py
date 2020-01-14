@@ -212,7 +212,7 @@ def handler(event, context):
 
             if put_sentiment_result == 'ok':
                 '''If function could put the sentiment to the DDB table then
-                 remove message from SQS queue.'''
+                remove message from SQS queue.'''
                 try:
                     sqs_client.delete_message(
                         QueueUrl=s_queue,
@@ -241,14 +241,14 @@ def handler(event, context):
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                log.info(f'Removing File: {file_path}')
+                log.debug(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
                     log.error(f'Could not delete file {file_path}: {str(e)}')
 
-            log.info(f'Removing Folder: {tmpdir}')
+            log.debug(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
     return('ok')

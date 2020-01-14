@@ -159,9 +159,9 @@ def upload_html(bucket, key, source_file):
     try:
         s3_resource.Object(bucket, key).upload_file(source_file)
         result = 'ok'
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
+        subsegment.put_annotation('OBJECT_UPLOAD', 'SUCCESS')
     except Exception as e:
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
+        subsegment.put_annotation('OBJECT_UPLOAD', 'FAILURE')
         log.error(f'Could not upload {source_file} to {bucket}: {str(e)}')
         result = 'fail'
 
@@ -217,7 +217,7 @@ def handler(event, context):
             with open(local_html_file, 'w') as outfile:
                 outfile.write(html)
                 log.info(f'''Success: Converted s3://{bucket_name}/{key_name}
-                 to {local_html_file}''')
+                    to {local_html_file}''')
             outfile.close()
 
             html_upload = upload_html(target_bucket,
@@ -253,14 +253,14 @@ def handler(event, context):
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                log.info(f'Removing File: {file_path}')
+                log.debug(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
                     log.error(f'Could not delete file {file_path}: {str(e)}')
 
-            log.info(f'Removing Folder: {tmpdir}')
+            log.debug(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
     return('ok')
