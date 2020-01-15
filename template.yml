@@ -346,3 +346,361 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt SentimentDlq.QueueName
+
+  ConverstionQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Conversion queue has too many messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConversionQueue.QueueName
+
+  SentimentQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Sentiment queue has too many messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SentimentQueue.QueueName
+
+  ConversionFunctionErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High error rate for Conversion Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: ConversionFunctionErrorRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 5.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  SentimentFunctionErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High error rate for Sentiment Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: SentimentFunctionErrorRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 5.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ConversionFunctionThrottleRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High throttle rate for Conversion Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: ConversionFunctionThrottleRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Throttles
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  SentimentFunctionThrottleRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High throttle rate for Sentiment Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: SentimentFunctionThrottleRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Throttles
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Average
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ApplicationDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref AWS::StackName
+      DashboardBody: !Sub '{
+        "widgets":
+          [
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/Lambda",
+                    "Invocations",
+                    "FunctionName",
+                    "${ConversionFunction}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Invocations"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${ConversionFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Error Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Error Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Throttle Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/SQS",
+                    "ApproximateNumberOfMessagesVisible",
+                    "QueueName",
+                    "${ConversionDlq.QueueName}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Conversion DLQ Length"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/Lambda",
+                    "Invocations",
+                    "FunctionName",
+                    "${SentimentFunction}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Invocations"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${SentimentFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Error Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Error Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Throttle Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/SQS",
+                    "ApproximateNumberOfMessagesVisible",
+                    "QueueName",
+                    "${SentimentDlq.QueueName}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Average",
+                "region": "${AWS::Region}",
+                "title":"Sentiment DLQ Length"
+              }
+            }
+          ]
+        }'

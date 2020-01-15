@@ -183,11 +183,19 @@ creates the following resources:
 
 - **SentimentTable** - A DynamoDB table that stores the input file along with the sentiment.
 
-- **AlarmTopic** - A SNS topic that has an email as a subscriber.  This topic is used to receive alarms from the **ConversionDlqAlarm** and **SentimentDlqAlarm**.
+- **AlarmTopic** - A SNS topic that has an email as a subscriber.  This topic is used to receive CloudWatch Alarms.
 
 - **ConversionDlqAlarm** - A CloudWatch Alarm that detects when there there are any messages sent to the **ConvesionDlq** within a 1 minute period and sends notification to the **AlarmTopic**.
 
 - **SentimentDlqAlarm** - A CloudWatch Alarm that detects when there there are any messages sent to the **SentimentDlq** within a 1 minute period and sends notification to the **AlarmTopic**.
+
+- **ConversionQueueAlarm** - A CloudWatch Alarm that detect when there are too many messages in the **ConversionQueue** and sends notification to the **AlarmTopic**.
+
+- **SentimentQueueAlarm** - A CloudWatch Alarm that detect when there are too many messages in the **SentimentQueue** and sends notification to the **AlarmTopic**.
+
+- **ConversionFunctionErrorRateAlarm** - A CloudWatch Alarm that detects when the error rate for **ConversionFunction** is too high and sends notification to the **AlarmTopic**.
+
+- **SentimentFunctionErrorRateAlarm** - A CloudWatch Alarm that detects when the error rate for **SentimentFunction** is too high and sends notification to the **AlarmTopic**.
 
 
 ## License
