@@ -170,14 +170,10 @@ def upload_html(bucket, key, source_file):
 
 
 def handler(event, context):
-    aws_lambda_logging.setup(level=log_level,
-                             aws_request_id=context.aws_request_id)
+    aws_lambda_logging.setup(level=log_level, aws_request_id=context.aws_request_id)
 
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
-
-        sqs_message_id = record['messageId']
-        sqs_event_source_arn = record['eventSourceARN']
 
         sqs_receipt_handle = record['receiptHandle']
 
@@ -194,19 +190,16 @@ def handler(event, context):
                 error_message += f'than {max_object_size} (max object bytes)'
                 log.error(error_message)
                 raise Exception('Source S3 object too large')
-                sys.exit(1)
 
             local_file = os.path.join(tmpdir, key_name)
 
             download_status = get_s3_object(bucket_name, key_name, local_file)
 
             if download_status == 'ok':
-                key_bytes = os.stat(local_file).st_size
                 log.info(f'Success: Download to {local_file} for conversion')
             else:
                 log.error(f'Fail to put object to {local_file}')
                 raise Exception(f'Fail to put object to {local_file}')
-                sys.exit(1)
 
             html = convert_to_html(local_file)
 
@@ -220,9 +213,11 @@ def handler(event, context):
                     to {local_html_file}''')
             outfile.close()
 
-            html_upload = upload_html(target_bucket,
-                                      html_filename,
-                                      local_html_file)
+            html_upload = upload_html(
+                        target_bucket,
+                        html_filename,
+                        local_html_file)
+
             if html_upload == 'ok':
                 '''If function could put the converted file to the S3 bucket then
                 remove message from the SQS queue'''
@@ -234,7 +229,7 @@ def handler(event, context):
                 except Exception as e:
                     log.error(f'{str(e)}')
                     raise Exception(str(e))
-                    sys.exit(1)
+
                 dst_s3_object = f's3://{target_bucket}/{html_filename}'
                 success_message = f'Success: Uploaded {local_html_file} to '
                 success_message += f'{dst_s3_object}'
@@ -247,7 +242,6 @@ def handler(event, context):
         except Exception as e:
             log.error(f'Could not convert record: {str(e)}')
             raise Exception(f'Could not convert record: {str(e)}')
-            sys.exit(1)
         finally:
             filesToRemove = os.listdir(tmpdir)
 
