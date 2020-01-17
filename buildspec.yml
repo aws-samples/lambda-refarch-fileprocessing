@@ -1,8 +1,5 @@
 version: 0.2
 
-env:
-  variables:
-    ARTIFACT_BUCKET: "jr-amz-test"
 phases:
   install:
     runtime-versions:
@@ -12,7 +9,7 @@ phases:
       - sam build --use-container
   post_build:
     commands:
-      - sam package --output-template-file packaged-template.yml --s3-bucket $ARTIFACT_BUCKET
+      - sam package --output-template-file $SAM_OUTPUT_TEMPLATE --s3-bucket $ARTIFACT_BUCKET
 artifacts:
   files:
-    - packaged-template.yml
+    - $SAM_OUTPUT_TEMPLATE

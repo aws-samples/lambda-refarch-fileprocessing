@@ -4,10 +4,10 @@ Parameters:
   AppName:
     Type: String
     Description: Name of the application.
-  SAMInputFile:
+  SAMTemplateFile:
     Type: String
-    Default: ""
-    Description: The filename for the SAM file.
+    Default: "packaged-template.yml"
+    Description: The filename for the SAM Template file.
   SAMOutputFile:
     Type: String
     Default: "packaged-template.yml"
@@ -41,11 +41,10 @@ Resources:
       Description: !Sub "Building stage for ${AppName}."
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
+        PrivilegedMode: True
         EnvironmentVariables:
-          - Name: S3_BUCKET
+          - Name: ARTIFACT_BUCKET
             Value: !Ref S3Bucket
-          - Name: INPUT_FILE
-            Value: !Ref SAMInputFile
         Image: !Ref CodeBuildImage
         Type: LINUX_CONTAINER
       Name: !Sub "${AppName}-build"
