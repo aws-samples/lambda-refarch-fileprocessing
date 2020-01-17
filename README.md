@@ -197,6 +197,11 @@ creates the following resources:
 
 - **SentimentFunctionErrorRateAlarm** - A CloudWatch Alarm that detects when the error rate for **SentimentFunction** is too high and sends notification to the **AlarmTopic**.
 
+- **ConversionFunctionThrottleRateAlarm** - A CloudWatch Alarm that detects when the throttle rate for **ConversionFunction** is too high and sends notification to the **AlarmTopic**.
+
+- **SentimentFunctionThrottleRateAlarm** - A CloudWatch Alarm that detects when the throttle rate for **SentimentFunction** is too high and sends notification to the **AlarmTopic**.
+
+- **ApplicationDashboard** - A CloudWatch Dashboard that presents Lambda function Invocations, Lambda function error and throttle rates, and visible SQS messages.
 
 ## License
 
