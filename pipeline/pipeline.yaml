@@ -4,10 +4,6 @@ Parameters:
   AppName:
     Type: String
     Description: Name of the application.
-  SAMTemplateFile:
-    Type: String
-    Default: "packaged-template.yml"
-    Description: The filename for the SAM Template file.
   SAMOutputFile:
     Type: String
     Default: "packaged-template.yml"
@@ -30,6 +26,9 @@ Parameters:
     NoEcho: true
     Type: String
     Description: "Secret. OAuthToken with access to Repo. Long string of characters and digits. Go to https://github.com/settings/tokens"
+  AlarmRecipientEmailAddress:
+    Type: String
+    Description: Email address for any alerts.
 Resources:
   CodeBuildProject:
     DependsOn: [S3Bucket]
@@ -45,6 +44,8 @@ Resources:
         EnvironmentVariables:
           - Name: ARTIFACT_BUCKET
             Value: !Ref S3Bucket
+          - Name: SAM_OUTPUT_TEMPLATE
+            Value: !Ref SAMOutputFile
         Image: !Ref CodeBuildImage
         Type: LINUX_CONTAINER
       Name: !Sub "${AppName}-build"
@@ -139,6 +140,7 @@ Resources:
             ChangeSetName: pipeline-changeset
             Capabilities: CAPABILITY_NAMED_IAM
             TemplatePath: !Sub "${AppName}-BuildArtifact::${SAMOutputFile}"
+            ParameterOverrides: !Sub '{"AlarmRecipientEmailAddress": "${AlarmRecipientEmailAddress}"}'
           RunOrder: 1
         - Name: execute-changeset
           InputArtifacts: []
@@ -209,7 +211,7 @@ Resources:
       PolicyName: CloudFormationRolePolicy
       PolicyDocument:
         Statement:
-        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning"]
+        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy"]
           Resource: "*"
           Effect: Allow
         - Action: ["s3:PutObject"]
@@ -218,25 +220,31 @@ Resources:
         - Action: ["lambda:*"]
           Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
           Effect: Allow
-        - Action: ["dynamo:*"]
-          Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+        - Action: ["lambda:CreateEventSourceMapping", "lambda:DeleteEventSourceMapping", "lambda:GetEventSourceMapping", "lambda:UpdateEventSourceMapping" ]
+          Resource: "*"
+          Effect: Allow
+        - Action: ["dynamodb:*"]
+          Resource: "*"
           Effect: Allow
         - Action: ["sqs:*"]
-          Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+          Resource: "*"
           Effect: Allow
         - Action: ["cloudwatch:*"]
-          Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+          Resource: "*"
           Effect: Allow
         - Action: ["cloudtrail:*"]
-          Resource: !Sub "arn:aws:apigateway:${AWS::Region}::*"
+          Resource: "*"
+          Effect: Allow
+        - Action: ["events:*"]
+          Resource: "*"
           Effect: Allow
         - Action: ["sns:*"]
           Resource: !Sub "arn:aws:sns:${AWS::Region}:*:*"
           Effect: Allow
-        - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole"]
+        - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole"]
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
-        - Action: ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
+        - Action: ["iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:DeleteRolePolicy", "iam:getRolePolicy", "iam:PutRolePolicy"]
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["iam:PassRole"]
