@@ -3,6 +3,7 @@ Description: "Template for full CI/CD serverless applications."
 Parameters:
   AppName:
     Type: String
+    Default: "lambda-file-refarch"
     Description: Name of the application.
   SAMOutputFile:
     Type: String
@@ -32,7 +33,7 @@ Parameters:
 Resources:
   CodeBuildProject:
     DependsOn: [S3Bucket]
-    Description: Creating AWS CodeBuild project
+    Description: AWS CodeBuild project
     Type: AWS::CodeBuild::Project
     Properties:
       Artifacts:
@@ -57,16 +58,15 @@ Resources:
           Value: !Ref AppName
       TimeoutInMinutes: 5
   S3Bucket:
-    Description: Creating Amazon S3 bucket for AWS CodePipeline artifacts
+    Description: S3 bucket for AWS CodePipeline artifacts
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}"
       VersioningConfiguration:
         Status: Enabled
   S3ArtifactBucketPolicy:
     DependsOn: [S3Bucket]
-    Description: Setting Amazon S3 bucket policy for AWS CodePipeline access
+    Description: S3 bucket policy for AWS CodePipeline access
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref S3Bucket
@@ -84,7 +84,7 @@ Resources:
               aws:SecureTransport: false
   ProjectPipeline:
     DependsOn: [S3Bucket, CodeBuildProject]
-    Description: Creating a deployment pipeline for your project in AWS CodePipeline
+    Description: AWS CodePipeline deployment pipeline for project 
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: !Sub "${AppName}-pipeline"
@@ -159,7 +159,7 @@ Resources:
         Type: S3
         Location: !Ref S3Bucket
   CodeBuildTrustRole:
-    Description: Creating service role in IAM for AWS CodeBuild
+    Description: Service role for AWS CodeBuild
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AppName}-codebuild-role"
@@ -173,26 +173,23 @@ Resources:
   CodeBuildRolePolicy:
     Type: AWS::IAM::Policy
     DependsOn: CodeBuildTrustRole
-    Description: Setting IAM policy for the service role for AWS CodeBuild
+    Description: IAM policy for the service role for AWS CodeBuild
     Properties:
       PolicyName: CodeBuildRolePolicy
       PolicyDocument:
         Statement:
         - Effect: Allow
           Action: ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-          Resource: ["*"]
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
         - Effect: Allow
-          Resource: ["*"]
           Action: ["s3:*"]
+          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
         - Effect: Allow
-          Resource: ["*"]
           Action: ["kms:GenerateDataKey*", "kms:Encrypt", "kms:Decrypt"]
-        - Effect: Allow
-          Resource: ["*"]
-          Action: ["sns:SendMessage"]
+          Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
       Roles: [!Ref CodeBuildTrustRole]
   CloudFormationTrustRole:
-    Description: Creating service role in IAM for AWS CloudFormation
+    Description: Service role for AWS CloudFormation
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AppName}-cloudformation-role"
@@ -206,40 +203,47 @@ Resources:
   CloudFormationRolePolicy:
     Type: AWS::IAM::Policy
     DependsOn: CloudFormationTrustRole
-    Description: Setting IAM policy for the service role for AWS CloudFormation
+    Description: IAM policy for the service role for AWS CloudFormation Deployment
     Properties:
       PolicyName: CloudFormationRolePolicy
       PolicyDocument:
         Statement:
-        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy"]
-          Resource: "*"
+        - Action: ["s3:GetBucketVersioning", "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy"]
+          Resource: 
+            - !Sub "arn:aws:s3:::${AppName}-*-inputbucket-*"
+            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*"
+            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*"
           Effect: Allow
-        - Action: ["s3:PutObject"]
-          Resource: ["arn:aws:s3:::codepipeline*"]
+        - Action: ["s3:GetObject", "s3:GetObjectVersion"]
+          Resource: 
+            - !Sub "arn:aws:s3:::${AppName}-*-inputbucket-*/*"
+            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*/*"
+            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*/*"
+            - !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         - Action: ["lambda:*"]
           Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
           Effect: Allow
         - Action: ["lambda:CreateEventSourceMapping", "lambda:DeleteEventSourceMapping", "lambda:GetEventSourceMapping", "lambda:UpdateEventSourceMapping" ]
-          Resource: "*"
+          Resource: ["*"]
           Effect: Allow
         - Action: ["dynamodb:*"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppName}-serverless-stack-SentimentTable-*"
           Effect: Allow
         - Action: ["sqs:*"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-*"
           Effect: Allow
         - Action: ["cloudwatch:*"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-serverless-stack-*"
           Effect: Allow
         - Action: ["cloudtrail:*"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${AppName}-serverless-stack-InputBucketTrail*"
           Effect: Allow
         - Action: ["events:*"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppName}-serverless-stack-FileProcessingRule-*"
           Effect: Allow
         - Action: ["sns:*"]
-          Resource: !Sub "arn:aws:sns:${AWS::Region}:*:*"
+          Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-AlarmTopic-*"
           Effect: Allow
         - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole"]
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
@@ -248,7 +252,7 @@ Resources:
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["iam:PassRole"]
-          Resource: ["*"]
+          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["cloudformation:CreateChangeSet"]
           Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
@@ -258,7 +262,7 @@ Resources:
           Effect: Allow
       Roles: [!Ref CloudFormationTrustRole]
   CodePipelineTrustRole:
-    Description: Creating service role in IAM for AWS CodePipeline
+    Description: Service role for AWS CodePipeline
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "${AppName}-codepipeline-role"
@@ -272,24 +276,25 @@ Resources:
   CodePipelineRolePolicy:
     Type: AWS::IAM::Policy
     DependsOn: CodePipelineTrustRole
-    Description: Setting IAM policy for the service role for AWS CodePipeline
+    Description: IAM policy for the service role for AWS CodePipeline
     Properties:
       PolicyName: CodePipelineRolePolicy
       PolicyDocument:
         Statement:
-        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning"]
-          Resource: "*"
-          Effect: Allow
-        - Action: ["s3:PutObject"]
-          Resource: ["arn:aws:s3:::codepipeline*"]
+        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:PutObject"]
+          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         - Action: ["codebuild:StartBuild", "codebuild:BatchGetBuilds"]
-          Resource: "*"
+          Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-build"
           Effect: Allow
-        - Action: ["cloudwatch:*", "s3:*", "sns:*", "cloudformation:*", "rds:*", "sqs:*", "iam:PassRole"]
-          Resource: "*"
+        - Action: ["cloudformation:*"]
+          Resource: 
+            # - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}-serverless-stack"
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}-serverless-stack/*"
           Effect: Allow
-        - Action: ["lambda:InvokeFunction", "lambda:ListFunctions"]
-          Resource: "*"
+        - Action: ["iam:PassRole"]
+          Resource: !GetAtt CloudFormationTrustRole.Arn
           Effect: Allow
       Roles: [!Ref CodePipelineTrustRole]
+
+
