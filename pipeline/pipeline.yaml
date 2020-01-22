@@ -289,7 +289,6 @@ Resources:
           Effect: Allow
         - Action: ["cloudformation:*"]
           Resource: 
-            # - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}-serverless-stack"
             - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}-serverless-stack/*"
           Effect: Allow
         - Action: ["iam:PassRole"]
