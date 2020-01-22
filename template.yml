@@ -402,7 +402,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref ConversionFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
         - Id: m2
@@ -414,7 +414,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref ConversionFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
       EvaluationPeriods: 1
@@ -441,7 +441,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref SentimentFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
         - Id: m2
@@ -453,7 +453,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref SentimentFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
       EvaluationPeriods: 1
@@ -480,7 +480,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref ConversionFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
         - Id: m2
@@ -492,7 +492,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref ConversionFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
       EvaluationPeriods: 1
@@ -519,7 +519,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref SentimentFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
         - Id: m2
@@ -531,7 +531,7 @@ Resources:
                 - Name: FunctionName
                   Value: !Ref SentimentFunction
             Period: 300
-            Stat: Average
+            Stat: Sum
             Unit: Count
           ReturnData: false
       EvaluationPeriods: 1
@@ -562,7 +562,7 @@ Resources:
                   ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Conversion Function Invocations"
               }
@@ -580,7 +580,7 @@ Resources:
                   [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Conversion Function Error Rate"
               }
@@ -598,7 +598,7 @@ Resources:
                   [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Conversion Function Throttle Rate"
               }
@@ -619,7 +619,7 @@ Resources:
                   ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Conversion DLQ Length"
               }
@@ -640,7 +640,7 @@ Resources:
                   ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment Function Invocations"
               }
@@ -658,7 +658,7 @@ Resources:
                   [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment Function Error Rate"
               }
@@ -676,7 +676,7 @@ Resources:
                   [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment Function Throttle Rate"
               }
@@ -697,7 +697,7 @@ Resources:
                   ]
                 ],
                 "period":60,
-                "stat":"Average",
+                "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment DLQ Length"
               }
