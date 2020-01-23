@@ -1,4 +1,3 @@
 packaged-template.yml
-post-sam.yml
 .aws-sam
-**/node_modules
+__pycache__
