@@ -25,112 +25,60 @@ Parameters:
 Resources:
   InputBucket:
     Type: AWS::S3::Bucket
-  
-  CloudTrailBucket:
-    Type: AWS::S3::Bucket
-  
-  InputBucketTrail:
-    DependsOn: CloudTrailBucketPolicy
-    Type: AWS::CloudTrail::Trail
-    Properties: 
-      S3BucketName: !Ref CloudTrailBucket
-      EventSelectors: 
-        - DataResources:
-          - Type: 'AWS::S3::Object'
-            Values:
-              - !Sub |-
-                arn:aws:s3:::${InputBucket}/
-          IncludeManagementEvents: false
-          ReadWriteType: WriteOnly
-      IsLogging: true
-  
-  CloudTrailBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    DependsOn: CloudTrailBucket
-    Properties: 
-      Bucket: !Ref CloudTrailBucket
-      PolicyDocument: 
-          Version: "2012-10-17"
-          Statement: 
-            - 
-              Sid: "AWSCloudTrailAclCheck"
-              Effect: "Allow"
-              Principal: 
-                Service: "cloudtrail.amazonaws.com"
-              Action: "s3:GetBucketAcl"
-              Resource: !Sub |-
-                  arn:aws:s3:::${CloudTrailBucket}
-            - 
-              Sid: "AWSCloudTrailWrite"
-              Effect: "Allow"
-              Principal: 
-                Service: "cloudtrail.amazonaws.com"
-              Action: "s3:PutObject"
-              Resource:
-                !Sub |-
-                  arn:aws:s3:::${CloudTrailBucket}/AWSLogs/${AWS::AccountId}/*
-              Condition: 
-                StringEquals:
-                  s3:x-amz-acl: "bucket-owner-full-control"
-
-  FileProcessingQueuePolicy:
-    # https://forums.aws.amazon.com/message.jspa?messageID=743094
-    Type: AWS::SQS::QueuePolicy
     Properties:
-      Queues:
-        - !Ref ConversionQueue
-        - !Ref SentimentQueue
+      BucketName: !Sub ${AWS::StackName}-${AWS::AccountId}-input-bucket
+      NotificationConfiguration:
+        TopicConfigurations:
+        - Event: s3:ObjectCreated:*
+          Topic: !Ref NotificationTopic
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+  
+  NotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - 
-            Effect: Allow
-            Principal:
-              AWS: '*'
-            Action:
-              - sqs:SendMessage
-            Resource: !GetAtt ConversionQueue.Arn
+          - Effect: Allow
+            Principal: "*"
+            Action: SNS:Publish
+            Resource: !Ref NotificationTopic
             Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnEquals:
-                aws:SourceArn: !GetAtt FileProcessingRule.Arn
-          - 
-            Effect: Allow
-            Principal:
-              AWS: '*'
-            Action:
-              - sqs:SendMessage
-            Resource: !GetAtt SentimentQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt FileProcessingRule.Arn
+                aws:SourceArn: !Sub "arn:aws:s3:::${InputBucket}"
+      Topics:
+        - !Ref NotificationTopic
 
-  FileProcessingRule:
-    Type: AWS::Events::Rule
-    DependsOn:
-      - ConversionQueue
-      - SentimentQueue
+  NotificationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
     Properties:
-      Description: Rule to capture S3 PutObject events
-      EventPattern:
-        source:
-          - aws.s3
-        detail-type:
-          - AWS API Call via CloudTrail
-        detail:
-          eventSource:
-            - s3.amazonaws.com
-          eventName:
-            - PutObject
-          requestParameters:
-            bucketName:
-              - !Ref InputBucket
-      State: 'ENABLED'
-      Targets:
-        - Arn: !GetAtt ConversionQueue.Arn
-          Id: Convert
-        - Arn: !GetAtt SentimentQueue.Arn
-          Id: Sentiment
-  
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn: !Ref NotificationTopic
+      Queues:
+        - !Ref ConversionQueue
+        - !Ref SentimentQueue
+
+  ConversionSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt ConversionQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
   ConversionQueue:
     Type: AWS::SQS::Queue
     DependsOn: ConversionDlq
@@ -202,6 +150,11 @@ Resources:
           TARGET_BUCKET: !Ref ConversionTargetBucket
           CONVERSION_QUEUE: !Ref ConversionQueue
           LOG_LEVEL: !Ref ConversionLogLevel
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt ConversionDlq.Arn
       Events:
         ConversionQueueReaderEvent:
           Type: SQS
@@ -211,6 +164,14 @@ Resources:
 
   ConversionTargetBucket:
     Type: AWS::S3::Bucket
+
+  SentimentSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt SentimentQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
 
   SentimentQueue:
     Type: AWS::SQS::Queue
@@ -290,6 +251,11 @@ Resources:
           SENTIMENT_TABLE: !Ref SentimentTable
           SENTIMENT_QUEUE: !Ref SentimentQueue
           LOG_LEVEL: !Ref SentimentLogLevel
+      EventInvokeConfig:
+        DestinationConfig:
+          OnFailure:
+            Type: SQS
+            Destination: !GetAtt SentimentDlq.Arn
       Events:
         SentimentQueueReaderEvent:
           Type: SQS
@@ -347,7 +313,7 @@ Resources:
         - Name: QueueName
           Value: !GetAtt SentimentDlq.QueueName
 
-  ConverstionQueueAlarm:
+  ConversionQueueAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: Conversion queue has too many messages

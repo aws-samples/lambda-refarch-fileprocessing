@@ -170,7 +170,8 @@ def upload_html(bucket, key, source_file):
 
 
 def handler(event, context):
-    aws_lambda_logging.setup(level=log_level, aws_request_id=context.aws_request_id)
+    aws_lambda_logging.setup(level=log_level,
+                             aws_request_id=context.aws_request_id)
 
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
@@ -179,66 +180,73 @@ def handler(event, context):
 
         try:
             json_body = json.loads(record['body'])
-            request_params = json_body['detail']['requestParameters']
-            bucket_name = request_params['bucketName']
-            key_name = request_params['key']
 
-            size = check_s3_object_size(bucket_name, key_name)
+            for record in json_body['Records']:
+                bucket_name = record['s3']['bucket']['name']
+                key_name = record['s3']['object']['key']
 
-            if size >= max_object_size:
-                error_message = f'Source S3 object s3://{bucket_name}/{key_name} is larger '
-                error_message += f'than {max_object_size} (max object bytes)'
-                log.error(error_message)
-                raise Exception('Source S3 object too large')
+                size = check_s3_object_size(bucket_name, key_name)
 
-            local_file = os.path.join(tmpdir, key_name)
+                if size >= max_object_size:
+                    error_message = f'Source S3 object '
+                    error_message = f's3://{bucket_name}/{key_name} is larger '
+                    error_message += f'than {max_object_size} '
+                    error_message += f'(max object bytes)'
+                    log.error(error_message)
+                    raise Exception('Source S3 object too large')
 
-            download_status = get_s3_object(bucket_name, key_name, local_file)
+                local_file = os.path.join(tmpdir, key_name)
 
-            if download_status == 'ok':
-                log.info(f'Success: Download to {local_file} for conversion')
-            else:
-                log.error(f'Fail to put object to {local_file}')
-                raise Exception(f'Fail to put object to {local_file}')
+                download_status = get_s3_object(bucket_name,
+                                                key_name,
+                                                local_file)
 
-            html = convert_to_html(local_file)
+                if download_status == 'ok':
+                    success_message = f'Success: Download to '
+                    success_message += f'{local_file} for conversion'
+                    log.info(success_message)
+                else:
+                    log.error(f'Fail to put object to {local_file}')
+                    raise Exception(f'Fail to put object to {local_file}')
 
-            html_filename = os.path.splitext(key_name)[0] + '.html'
+                html = convert_to_html(local_file)
 
-            local_html_file = os.path.join(tmpdir, html_filename)
+                html_filename = os.path.splitext(key_name)[0] + '.html'
 
-            with open(local_html_file, 'w') as outfile:
-                outfile.write(html)
-                log.info(f'''Success: Converted s3://{bucket_name}/{key_name}
-                    to {local_html_file}''')
-            outfile.close()
+                local_html_file = os.path.join(tmpdir, html_filename)
 
-            html_upload = upload_html(
-                        target_bucket,
-                        html_filename,
-                        local_html_file)
+                with open(local_html_file, 'w') as outfile:
+                    outfile.write(html)
+                    log.info(f'''Success: Converted s3://{bucket_name}/{key_name}
+                        to {local_html_file}''')
+                outfile.close()
 
-            if html_upload == 'ok':
-                '''If function could put the converted file to the S3 bucket then
-                remove message from the SQS queue'''
-                try:
-                    sqs_client.delete_message(
-                        QueueUrl=conversion_queue,
-                        ReceiptHandle=sqs_receipt_handle
-                    )
-                except Exception as e:
-                    log.error(f'{str(e)}')
-                    raise Exception(str(e))
+                html_upload = upload_html(
+                            target_bucket,
+                            html_filename,
+                            local_html_file)
 
-                dst_s3_object = f's3://{target_bucket}/{html_filename}'
-                success_message = f'Success: Uploaded {local_html_file} to '
-                success_message += f'{dst_s3_object}'
-                log.info(success_message)
-            else:
-                error_message = f'Could not upload file to '
-                error_message += f'{dst_s3_object}: {str(e)}'
-                log.error(error_message)
-                raise Exception(error_message)
+                if html_upload == 'ok':
+                    '''If function could put the converted file to the S3 bucket then
+                    remove message from the SQS queue'''
+                    try:
+                        sqs_client.delete_message(
+                            QueueUrl=conversion_queue,
+                            ReceiptHandle=sqs_receipt_handle
+                        )
+                    except Exception as e:
+                        log.error(f'{str(e)}')
+                        raise Exception(str(e))
+
+                    dst_s3_object = f's3://{target_bucket}/{html_filename}'
+                    success_message = f'Success: Uploaded {local_html_file} '
+                    success_message += f'to {dst_s3_object}'
+                    log.info(success_message)
+                else:
+                    error_message = f'Could not upload file to '
+                    error_message += f'{dst_s3_object}: {str(e)}'
+                    log.error(error_message)
+                    raise Exception(error_message)
         except Exception as e:
             log.error(f'Could not convert record: {str(e)}')
             raise Exception(f'Could not convert record: {str(e)}')
