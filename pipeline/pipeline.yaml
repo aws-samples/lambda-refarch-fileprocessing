@@ -179,13 +179,19 @@ Resources:
       PolicyDocument:
         Statement:
         - Effect: Allow
-          Action: ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+          Action: 
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
           Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
         - Effect: Allow
           Action: ["s3:*"]
           Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
         - Effect: Allow
-          Action: ["kms:GenerateDataKey*", "kms:Encrypt", "kms:Decrypt"]
+          Action: 
+            - kms:GenerateDataKey*
+            - kms:Encrypt
+            - kms:Decrypt
           Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
       Roles: [!Ref CodeBuildTrustRole]
   CloudFormationTrustRole:
@@ -208,65 +214,88 @@ Resources:
       PolicyName: CloudFormationRolePolicy
       PolicyDocument:
         Statement:
-        - Action: ["s3:PutBucketNotification", "s3:GetBucketVersioning", "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy"]
+        - Action: 
+            - s3:PutBucketNotification
+            - s3:GetBucketVersioning
+            - s3:CreateBucket
+            - s3:DeleteBucket
+            - s3:GetBucketPolicy
+            - s3:DeleteBucketPolicy
+            - s3:PutBucketPolicy
           Resource: 
             - !Sub "arn:aws:s3:::*-*-inputbucket"
-            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*"
-            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*"
+            - !Sub "arn:aws:s3:::${AppName}-conversiontargetbucket-*"
           Effect: Allow
-        - Action: ["s3:GetObject", "s3:GetObjectVersion"]
+        
+        - Action: 
+            - s3:GetObject
+            - s3:GetObjectVersion
           Resource: 
-            - !Sub "arn:aws:s3:::${AppName}-*-inputbucket/*"
-            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*/*"
-            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*/*"
             - !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
+        
         - Action: ["lambda:*"]
           Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
           Effect: Allow
-        - Action: ["lambda:PutFunctionEventInvokeConfig"]
+        
+        - Action: 
+            - lambda:CreateEventSourceMapping
+            - lambda:DeleteEventSourceMapping
+            - lambda:GetEventSourceMapping
+            - lambda:UpdateEventSourceMapping
+            - lambda:PutFunctionEventInvokeConfig
+            - lambda:DeleteFunctionEventInvokeConfig
+            - lambda:UpdateFunctionEventInvokeConfig
           Resource: ["*"]
           Effect: Allow
-        - Action: ["lambda:CreateEventSourceMapping", "lambda:DeleteEventSourceMapping", "lambda:GetEventSourceMapping", "lambda:UpdateEventSourceMapping" ]
-          Resource: ["*"]
-          Effect: Allow
+        
         - Action: ["dynamodb:*"]
           Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppName}-SentimentTable-*"
           Effect: Allow
+        
         - Action: ["sqs:*"]
           Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AppName}-*"
           Effect: Allow
+        
         - Action: ["cloudwatch:*"]
           Resource: 
             - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-*"
-            - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:dashboard/${AppName}"
+            - !Sub "arn:aws:cloudwatch::${AWS::AccountId}:dashboard/${AppName}"
           Effect: Allow
-        - Action: ["cloudtrail:*"]
-          Resource: !Sub "arn:aws:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${AppName}-InputBucketTrail*"
-          Effect: Allow
-        - Action: ["events:*"]
-          Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppName}-FileProcessingRule-*"
-          Effect: Allow
+        
         - Action: ["sns:*"]
           Resource: 
             - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-AlarmTopic-*"
             - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-NotificationTopic-*"     
           Effect: Allow     
-        - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole"]
+        
+        - Action: 
+          - iam:GetRole
+          - iam:CreateRole
+          - iam:DeleteRole
+          - iam:TagRole
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
-        - Action: ["iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:DeleteRolePolicy", "iam:getRolePolicy", "iam:PutRolePolicy"]
+        
+        - Action: 
+          - iam:AttachRolePolicy
+          - iam:DetachRolePolicy
+          - iam:DeleteRolePolicy
+          - iam:getRolePolicy
+          - iam:PutRolePolicy
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
+        
         - Action: ["iam:PassRole"]
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
+        
         - Action: ["cloudformation:CreateChangeSet"]
-          Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+          Resource: 
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Include"
           Effect: Allow
-        - Action: ["cloudformation:CreateChangeSet"]
-          Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Include"
-          Effect: Allow
+      
       Roles: [!Ref CloudFormationTrustRole]
   CodePipelineTrustRole:
     Description: Service role for AWS CodePipeline
