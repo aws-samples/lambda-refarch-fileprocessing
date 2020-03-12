@@ -1,9 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "Template for full CI/CD serverless applications."
 Parameters:
+  AppName:
+    Type: String
+    Default: lambda-file-refarch
+    Description: Name used for application deployment
   SAMOutputFile:
     Type: String
-    Default: "packaged-template.yml"
+    Default: packaged-template.yml
     Description: The filename for the output SAM file from the buildspec file
   CodeBuildImage:
     Type: String
@@ -34,7 +38,7 @@ Resources:
     Properties:
       Artifacts:
         Type: CODEPIPELINE
-      Description: !Sub "Building stage for lambda-file-refarch."
+      Description: !Sub "Building stage for ${AppName}."
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         PrivilegedMode: True
@@ -45,19 +49,19 @@ Resources:
             Value: !Ref SAMOutputFile
         Image: !Ref CodeBuildImage
         Type: LINUX_CONTAINER
-      Name: !Sub "lambda-file-refarch-build"
+      Name: !Sub "${AppName}-build"
       ServiceRole: !GetAtt CodeBuildTrustRole.Arn
       Source:
         Type: CODEPIPELINE
       Tags:
         - Key: app-name
-          Value: "lambda-file-refarch"
+          Value: !Ref AppName
       TimeoutInMinutes: 5
   S3Bucket:
     Description: S3 bucket for AWS CodePipeline artifacts
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "serverless-app-${AWS::AccountId}-${AWS::Region}-lambda-file-refarch"
+      BucketName: !Sub "serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}"
       VersioningConfiguration:
         Status: Enabled
   S3ArtifactBucketPolicy:
@@ -83,7 +87,7 @@ Resources:
     Description: AWS CodePipeline deployment pipeline for project 
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Sub "lambda-file-refarch-pipeline"
+      Name: !Sub "${AppName}-pipeline"
       RoleArn: !GetAtt CodePipelineTrustRole.Arn
       Stages:
       - Name: Source
@@ -96,7 +100,7 @@ Resources:
             Owner: ThirdParty
             Provider: GitHub
           OutputArtifacts:
-          - Name: !Sub "lambda-file-refarch-SourceArtifact"
+          - Name: !Sub "${AppName}-SourceArtifact"
           Configuration:
             Repo: !Ref GitHubRepoName
             Branch: !Ref GitHubRepoBranch
@@ -107,22 +111,22 @@ Resources:
         Actions:
         - Name: build-from-source
           InputArtifacts:
-          - Name: !Sub "lambda-file-refarch-SourceArtifact"
+          - Name: !Sub "${AppName}-SourceArtifact"
           ActionTypeId:
             Category: Build
             Owner: AWS
             Version: "1"
             Provider: CodeBuild
           OutputArtifacts:
-          - Name: !Sub "lambda-file-refarch-BuildArtifact"
+          - Name: !Sub "${AppName}-BuildArtifact"
           Configuration:
-            ProjectName: !Sub "lambda-file-refarch-build"
+            ProjectName: !Sub "${AppName}-build"
           RunOrder: 1
       - Name: Deploy
         Actions:
         - Name: create-changeset
           InputArtifacts:
-          - Name: !Sub "lambda-file-refarch-BuildArtifact"
+          - Name: !Sub "${AppName}-BuildArtifact"
           ActionTypeId:
             Category: Deploy
             Owner: AWS
@@ -130,12 +134,12 @@ Resources:
             Provider: CloudFormation
           OutputArtifacts: []
           Configuration:
-            StackName: !Sub "lambda-file-refarch-serverless-stack"
+            StackName: !Sub "${AppName}-serverless-stack"
             ActionMode: CHANGE_SET_REPLACE
             RoleArn: !GetAtt CloudFormationTrustRole.Arn
             ChangeSetName: pipeline-changeset
             Capabilities: CAPABILITY_NAMED_IAM
-            TemplatePath: !Sub "lambda-file-refarch-BuildArtifact::${SAMOutputFile}"
+            TemplatePath: !Sub "${AppName}-BuildArtifact::${SAMOutputFile}"
             ParameterOverrides: !Sub '{"AlarmRecipientEmailAddress": "${AlarmRecipientEmailAddress}"}'
           RunOrder: 1
         - Name: execute-changeset
@@ -147,7 +151,7 @@ Resources:
             Provider: CloudFormation
           OutputArtifacts: []
           Configuration:
-            StackName: !Sub "lambda-file-refarch-serverless-stack"
+            StackName: !Sub "${AppName}-serverless-stack"
             ActionMode: CHANGE_SET_EXECUTE
             ChangeSetName: pipeline-changeset
           RunOrder: 2
@@ -158,7 +162,7 @@ Resources:
     Description: Service role for AWS CodeBuild
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "lambda-file-refarch-codebuild-role"
+      RoleName: !Sub "${AppName}-codebuild-role"
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -176,10 +180,10 @@ Resources:
         Statement:
         - Effect: Allow
           Action: ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/lambda-file-refarch-build*"
+          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
         - Effect: Allow
           Action: ["s3:*"]
-          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-lambda-file-refarch/*"
+          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
         - Effect: Allow
           Action: ["kms:GenerateDataKey*", "kms:Encrypt", "kms:Decrypt"]
           Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
@@ -188,7 +192,7 @@ Resources:
     Description: Service role for AWS CloudFormation
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "lambda-file-refarch-cloudformation-role"
+      RoleName: !Sub "${AppName}-cloudformation-role"
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -206,16 +210,16 @@ Resources:
         Statement:
         - Action: ["s3:GetBucketVersioning", "s3:CreateBucket", "s3:DeleteBucket", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy"]
           Resource: 
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-inputbucket-*"
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-cloudtrailbucket-*"
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-conversiontargetbucket-*"
+            - !Sub "arn:aws:s3:::*-*-inputbucket"
+            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*"
+            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*"
           Effect: Allow
         - Action: ["s3:GetObject", "s3:GetObjectVersion"]
           Resource: 
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-inputbucket-*/*"
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-cloudtrailbucket-*/*"
-            - !Sub "arn:aws:s3:::lambda-file-refarch-*-conversiontargetbucket-*/*"
-            - !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-lambda-file-refarch/*"
+            - !Sub "arn:aws:s3:::${AppName}-*-inputbucket/*"
+            - !Sub "arn:aws:s3:::${AppName}-*-cloudtrailbucket-*/*"
+            - !Sub "arn:aws:s3:::${AppName}-*-conversiontargetbucket-*/*"
+            - !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         - Action: ["lambda:*"]
           Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*"
@@ -224,33 +228,33 @@ Resources:
           Resource: ["*"]
           Effect: Allow
         - Action: ["dynamodb:*"]
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/lambda-file-refarch-serverless-stack-SentimentTable-*"
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppName}-serverless-stack-SentimentTable-*"
           Effect: Allow
         - Action: ["sqs:*"]
-          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:lambda-file-refarch-serverless-stack-*"
+          Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-*"
           Effect: Allow
         - Action: ["cloudwatch:*"]
-          Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:lambda-file-refarch-serverless-stack-*"
+          Resource: !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-serverless-stack-*"
           Effect: Allow
         - Action: ["cloudtrail:*"]
-          Resource: !Sub "arn:aws:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/lambda-file-refarch-serverless-stack-InputBucketTrail*"
+          Resource: !Sub "arn:aws:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/${AppName}-serverless-stack-InputBucketTrail*"
           Effect: Allow
         - Action: ["events:*"]
-          Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/lambda-file-refarch-serverless-stack-FileProcessingRule-*"
+          Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppName}-serverless-stack-FileProcessingRule-*"
           Effect: Allow
         - Action: ["sns:*"]
           Resource: 
-            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:lambda-file-refarch-serverless-stack-AlarmTopic-*"
-            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:lambda-file-refarch-serverless-stack-NotificationTopic-*"     
+            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-AlarmTopic-*"
+            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-NotificationTopic-*"     
           Effect: Allow     
         - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole"]
-          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/lambda-file-refarch-*"
+          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:DeleteRolePolicy", "iam:getRolePolicy", "iam:PutRolePolicy"]
-          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/lambda-file-refarch-*"
+          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["iam:PassRole"]
-          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/lambda-file-refarch-*"
+          Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         - Action: ["cloudformation:CreateChangeSet"]
           Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
@@ -263,7 +267,7 @@ Resources:
     Description: Service role for AWS CodePipeline
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "lambda-file-refarch-codepipeline-role"
+      RoleName: !Sub "${AppName}-codepipeline-role"
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -280,14 +284,14 @@ Resources:
       PolicyDocument:
         Statement:
         - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:PutObject"]
-          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-lambda-file-refarch/*"
+          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         - Action: ["codebuild:StartBuild", "codebuild:BatchGetBuilds"]
-          Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/lambda-file-refarch-build"
+          Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-build"
           Effect: Allow
         - Action: ["cloudformation:*"]
           Resource: 
-            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/lambda-file-refarch-serverless-stack/*"
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}-serverless-stack/*"
           Effect: Allow
         - Action: ["iam:PassRole"]
           Resource: !GetAtt CloudFormationTrustRole.Arn
