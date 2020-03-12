@@ -243,8 +243,10 @@ Resources:
           Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${AppName}-serverless-stack-FileProcessingRule-*"
           Effect: Allow
         - Action: ["sns:*"]
-          Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-AlarmTopic-*"
-          Effect: Allow
+          Resource: 
+            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-AlarmTopic-*"
+            - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AppName}-serverless-stack-NotificationTopic-*"     
+          Effect: Allow     
         - Action: ["iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole"]
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
