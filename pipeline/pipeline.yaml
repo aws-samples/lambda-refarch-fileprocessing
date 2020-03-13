@@ -286,11 +286,13 @@ Resources:
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         
-        - Action: ["iam:PassRole"]
+        - Action: 
+            - iam:PassRole
           Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppName}-*"
           Effect: Allow
         
-        - Action: ["cloudformation:CreateChangeSet"]
+        - Action: 
+            - cloudformation:CreateChangeSet
           Resource: 
             - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
             - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Include"
@@ -317,17 +319,25 @@ Resources:
       PolicyName: CodePipelineRolePolicy
       PolicyDocument:
         Statement:
-        - Action: ["s3:GetObject", "s3:GetObjectVersion", "s3:GetBucketVersioning", "s3:PutObject"]
+        - Action: 
+            - s3:GetObject
+            - s3:GetObjectVersion
+            - s3:GetBucketVersioning
+            - s3:PutObject
           Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
-        - Action: ["codebuild:StartBuild", "codebuild:BatchGetBuilds"]
+        - Action: 
+            - codebuild:StartBuild
+            - codebuild:BatchGetBuilds
           Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-build"
           Effect: Allow
-        - Action: ["cloudformation:*"]
+        - Action: 
+            - cloudformation:*
           Resource: 
             - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}/*"
           Effect: Allow
-        - Action: ["iam:PassRole"]
+        - Action: 
+          - iam:PassRole
           Resource: !GetAtt CloudFormationTrustRole.Arn
           Effect: Allow
       Roles: [!Ref CodePipelineTrustRole]
