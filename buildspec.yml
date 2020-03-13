@@ -4,6 +4,8 @@ phases:
   install:
     runtime-versions:
       python: 3.7
+    commands:
+      - pip install --upgrade aws-sam-cli
   build:
     commands:
       - sam build --use-container
@@ -13,3 +15,4 @@ phases:
 artifacts:
   files:
     - $SAM_OUTPUT_TEMPLATE
+    
