@@ -27,7 +27,7 @@ monitored our pipeline will begin executing. The source stage will connect to Gi
 
 ### Build
 
-In order to run our SAM build and SAM package commands we are using the fully managed continuous integration service [CodeBuild](https://aws.amazon.com/codebuild/) CodeBuild allows us to perform a sequence of commands that we define in the [BuildSpec.yml](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html)
+In order to run our SAM build and SAM package commands we are using [CodeBuild](https://aws.amazon.com/codebuild/), a fully managed continuous integration service . Codebuild allows us to perform a sequence of commands that we define in the [BuildSpec.yml](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html)
 file that will execute inside the [build environment](https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref.html) we define using a docker container. For this project we are using the Amazon Linux 2 version 1.0 container with Python 3.7.
 
 Within the buildspec.yml we are:
@@ -39,8 +39,7 @@ Within the buildspec.yml we are:
 
 ### Deploy
 
-To deploy our application stack we are not using SAM Deploy, instead we are opting to use CodePipelines native support for CloudFormation. The pipeline has a role it use with appropriate permissions to deploy the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html)
-and [approval actions](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-action-add.html) to demonstrate a manual approval workflow. The first deployment will not require approval however subsequent updates will.
+To deploy our application stack we are not using SAM Deploy, instead we are opting to use the CodePipeline native support for CloudFormation. The pipeline has a role it use with appropriate permissions to deploy the template created by the SAM package step which will create a stack containing the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html) and [approval actions](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-action-add.html) to demonstrate a manual approval workflow. The first deployment will not require approval however subsequent updates will.
 
 Additional resources will be deployed as per the main architecture documentation.
 
