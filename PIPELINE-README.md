@@ -48,8 +48,6 @@ Additional resources will be deployed as per the main architecture documentation
 
 To get started you just need to deploy the pipeline CloudFormation stack using the template found in this repository under pipeline/pipeline.yaml in order for this to be successful you will need to provide some additional information.
 
-  GitHub Repository information. 
-
   GitHubRepoName: The name of the GitHub repository hosting your source code.
  
   GitHubRepoBranch: The GitHub repo branch code pipeline should watch for changes on. This defaults to master, but any branch can be used.
@@ -58,6 +56,7 @@ To get started you just need to deploy the pipeline CloudFormation stack using t
 
   GitHubToken: GitHub OAuthToken with access to be able to clone the repository. You can find more information in the [GitHub Documentation](https://github.com/settings/tokens)
 
+  AlarmRecipientEmailAddress: You will need to provide an email address that can be used for configuring notifications
 
 ### Deploying the template
 
