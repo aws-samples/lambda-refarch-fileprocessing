@@ -23,7 +23,7 @@ pipeline/pipeline.yml is a CloudFormation template that will deploy all the requ
 ### Source
 
 For this application we are hosting our source code in GitHub. Other [Source Integrations](https://docs.aws.amazon.com/codepipeline/latest/userguide/integrations-action-type.html#integrations-source) are available however this template focuses on GitHub. Whenever an update is pushed to the GitHub branch being
-monitored our pipeline will being executing. The source stage will connect to GitHub using the credentials provided and download the branch into our pipelines artefact bucket for use in the other stages. 
+monitored our pipeline will begin executing. The source stage will connect to GitHub using the credentials provided and clone the branch into our pipeline artefact bucket for use in the other stages. 
 
 ### Build
 
@@ -39,7 +39,7 @@ Within the buildspec.yml we are:
 
 ### Deploy
 
-To deploy our application stack we are not using SAM Deploy, instead we are opting to use CodePipelines native support for CloudFormation. The Pipeline has a role it use with appropriate permissions to deploy the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html)
+To deploy our application stack we are not using SAM Deploy, instead we are opting to use CodePipelines native support for CloudFormation. The pipeline has a role it use with appropriate permissions to deploy the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html)
 and [approval actions](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-action-add.html) to demonstrate a manual approval workflow. The first deployment will not require approval however subsequent updates will.
 
 Additional resources will be deployed as per the main architecture documentation.
