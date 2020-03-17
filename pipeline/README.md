@@ -47,19 +47,38 @@ Additional resources will be deployed as per the main architecture documentation
 
 To get started you just need to deploy the pipeline CloudFormation stack using the template found in this repository under pipeline/pipeline.yaml in order for this to be successful you will need to provide some additional information.
 
-  GitHubRepoName: The name of the GitHub repository hosting your source code.
- 
-  GitHubRepoBranch: The GitHub repo branch code pipeline should watch for changes on. This defaults to master, but any branch can be used.
-
-  GitHubRepoOwner: the GitHub repository owner. e.g. awslabs
-
-  GitHubToken: GitHub OAuthToken with access to be able to clone the repository. You can find more information in the [GitHub Documentation](https://github.com/settings/tokens)
-
-  AlarmRecipientEmailAddress: You will need to provide an email address that can be used for configuring notifications
+  * GitHubToken: GitHub OAuthToken with access to be able to clone the repository. You can find more information in the [GitHub Documentation](https://github.com/settings/tokens)
+  * AlarmRecipientEmailAddress: You will need to provide an email address that can be used for configuring notifications
+  
+Optionally, if you are deploying from your own repository you will need to also provide:
+    
+  * GitHubRepoName: The name of the GitHub repository hosting your source code. By default it points to the AWSLabs repo.
+  * GitHubRepoBranch: The GitHub repo branch code pipeline should watch for changes on. This defaults to master, but any branch can be used.
+  * GitHubRepoOwner: the GitHub repository owner. e.g. awslabs
 
 ### Deploying the template
 
 You can deploy the template using either the [AWS Console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-create-stack.html) or the [AWS CLI](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-cli-creating-stack.html)
+
+[TODO] Insert quick link to create CFN stack
+##### Example CLI Deployment
+
+> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**"
+
+### Deploying twice for a Development and Production example.
+
+You can actually deploy the pipeline twice to give two seperate envionments. Allowing you to create a simple dev to production workflow.
+
+Deploy the first stack using a stack name of "lambda-file-refarch-pipeline-dev" update the **AppName** parameter to be environment specific. e.g. "lambda-file-refarch-dev" and make sure to update the branch to the development one.
+
+Example CLI Deployment for development pipeline
+
+> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-dev" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="develop"
+
+Once that has deployed and the application stack has also succesfully deployed you can provision the production pipeline stack.
+
+> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-prod" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="master"
+
 
 ## Clean-up
 
