@@ -67,17 +67,19 @@ You can deploy the template using either the [AWS Console](https://docs.aws.amaz
 
 ### Deploying twice for a Development and Production example.
 
-You can actually deploy the pipeline twice to give two seperate envionments. Allowing you to create a simple dev to production workflow.
+You can actually deploy the pipeline twice to give two separate environments. Allowing you to create a simple dev to production workflow.
+
+This will allow you to build your application in your development branch and any changes will automatically be picked up and deployed by the pipeline. Once you have tested and are happy the changes can be merged to master and they will be automatically built and deployed to production.
 
 Deploy the first stack using a stack name of "lambda-file-refarch-pipeline-dev" update the **AppName** parameter to be environment specific. e.g. "lambda-file-refarch-dev" and make sure to update the branch to the development one.
 
 Example CLI Deployment for development pipeline
 
-> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-dev" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="develop"
+> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline-dev" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-dev" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="develop"
 
-Once that has deployed and the application stack has also succesfully deployed you can provision the production pipeline stack.
+Once that has deployed and the application stack has also successfully deployed you can provision the production pipeline stack.
 
-> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-prod" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="master"
+> aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline-prod" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-prod" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="master"
 
 
 ## Clean-up
@@ -88,4 +90,5 @@ In order to remove all resources created by this example you will first need to 
 * Application input bucket
 * Application conversion bucket
 
-Once that is complete you can remove both the Application Stack and the Pipeline Stack.
+Once that is complete you can remove both the Application Stack and the Pipeline Stack. 
+Note that the pipeline stack should not be removed until the application stack has successfully deleted as it is deployed using a role present in the pipeline stack. This role is used to also delete the stack.
