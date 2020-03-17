@@ -15,6 +15,7 @@ Parameters:
     Description: Image used for CodeBuild project.
   GitHubRepoName:
     Type: String
+    Default: "lambda-refarch-fileprocessing"
     Description: The GitHub repo name
   GitHubRepoBranch:
     Type: String
@@ -22,6 +23,7 @@ Parameters:
     Default: master
   GitHubRepoOwner:
     Type: String
+    Default: "awslabs"
     Description: GitHub Repository Owner.
   GitHubToken:
     NoEcho: true
@@ -61,7 +63,7 @@ Resources:
     Description: S3 bucket for AWS CodePipeline artifacts
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}"
+      BucketName: !Sub "pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}"
       VersioningConfiguration:
         Status: Enabled
   S3ArtifactBucketPolicy:
@@ -186,7 +188,7 @@ Resources:
           Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
         - Effect: Allow
           Action: ["s3:*"]
-          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
+          Resource: !Sub "arn:aws:s3:::pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
         - Effect: Allow
           Action: 
             - kms:GenerateDataKey*
@@ -231,7 +233,7 @@ Resources:
             - s3:GetObject
             - s3:GetObjectVersion
           Resource: 
-            - !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
+            - !Sub "arn:aws:s3:::pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         
         - Action: ["lambda:*"]
@@ -324,7 +326,7 @@ Resources:
             - s3:GetObjectVersion
             - s3:GetBucketVersioning
             - s3:PutObject
-          Resource: !Sub "arn:aws:s3:::serverless-app-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
+          Resource: !Sub "arn:aws:s3:::pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
           Effect: Allow
         - Action: 
             - codebuild:StartBuild
