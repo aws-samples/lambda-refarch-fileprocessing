@@ -3,7 +3,7 @@ Description: "Template for full CI/CD serverless applications."
 Parameters:
   AppName:
     Type: String
-    Default: lambda-file-refarch
+    Default: lambda-file-refarch-app
     Description: Name used for application deployment
   SAMOutputFile:
     Type: String
@@ -34,7 +34,7 @@ Parameters:
     Description: Email address for any alerts.
 Resources:
   CodeBuildProject:
-    DependsOn: [S3Bucket]
+    DependsOn: [PipelineBucket]
     Description: AWS CodeBuild project
     Type: AWS::CodeBuild::Project
     Properties:
@@ -46,7 +46,7 @@ Resources:
         PrivilegedMode: True
         EnvironmentVariables:
           - Name: ARTIFACT_BUCKET
-            Value: !Ref S3Bucket
+            Value: !Ref PipelineBucket
           - Name: SAM_OUTPUT_TEMPLATE
             Value: !Ref SAMOutputFile
         Image: !Ref CodeBuildImage
@@ -59,7 +59,7 @@ Resources:
         - Key: app-name
           Value: !Ref AppName
       TimeoutInMinutes: 5
-  S3Bucket:
+  PipelineBucket:
     Description: S3 bucket for AWS CodePipeline artifacts
     Type: AWS::S3::Bucket
     Properties:
@@ -67,11 +67,11 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
   S3ArtifactBucketPolicy:
-    DependsOn: [S3Bucket]
+    DependsOn: [PipelineBucket]
     Description: S3 bucket policy for AWS CodePipeline access
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref S3Bucket
+      Bucket: !Ref PipelineBucket
       PolicyDocument:
         Version: "2012-10-17"
         Id: SSEAndSSLPolicy
@@ -80,12 +80,12 @@ Resources:
           Effect: Deny
           Principal: "*"
           Action: s3:*
-          Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+          Resource: !Sub "arn:aws:s3:::${PipelineBucket}/*"
           Condition:
             Bool:
               aws:SecureTransport: false
   ProjectPipeline:
-    DependsOn: [S3Bucket, CodeBuildProject]
+    DependsOn: [PipelineBucket, CodeBuildProject]
     Description: AWS CodePipeline deployment pipeline for project 
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -159,7 +159,7 @@ Resources:
           RunOrder: 2
       ArtifactStore:
         Type: S3
-        Location: !Ref S3Bucket
+        Location: !Ref PipelineBucket
   CodeBuildTrustRole:
     Description: Service role for AWS CodeBuild
     Type: AWS::IAM::Role
