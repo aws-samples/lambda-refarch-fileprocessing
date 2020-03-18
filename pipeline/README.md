@@ -122,4 +122,14 @@ In order to remove all resources created by this example you will first need to 
 Once that is complete you can remove both the Application Stack and the Pipeline Stack. 
 Note that the pipeline stack should not be removed until the application stack has successfully deleted as it is deployed using a role present in the pipeline stack. This role is used to also delete the stack.
 
-Additionally there will be some codebuild logs and loggroups left over in CloudWatch, these can be deleted. 
+Additionally there will be some Codebuild logs and Log Groups left over in CloudWatch, these can be deleted. 
+
+Alternatively you can use the script /pipeline/cleanup.sh
+
+Things to note:
+
+* Script will remove only stacks deployed as described in the examples.
+
+* Both the application and the pipeline stacks will be removed.
+
+* JQ needs to be installed in order to empty the pipeline bucket as versioning is enabled. The command to delete versions and markers requires it.
