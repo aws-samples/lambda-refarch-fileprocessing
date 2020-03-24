@@ -25,6 +25,8 @@ pipeline.yml is a CloudFormation template that will deploy all the required pipe
 * CodePipeline
 * CodeBuild Project
 * Roles for CodePipeline, CodeBuild and the CloudFormation Deployment
+* SNS Topic for Pipeline notifications
+* CloudWatch Event for Pipeline Failures
 
 
 ### Source
@@ -52,9 +54,9 @@ Within the buildspec.yml we are:
 ### Deploy
 
 
-To deploy our application stack we are not using SAM Deploy, instead we are opting to use the CodePipeline native support for CloudFormation. The pipeline has a role it use with appropriate permissions to deploy the template created by the SAM package step which will create a stack containing the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html) and [approval actions](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-action-add.html) to demonstrate a manual approval workflow. The first deployment will not require approval however subsequent updates will.
+To deploy our application stack we are not using SAM Deploy, CodePipeline doesn't support SAM natively so instead we are opting to use the CodePipeline native support for CloudFormation to deploy the template that SAM creates. The pipeline has a role it use with appropriate permissions to deploy the template created by the SAM package step which will create a stack containing the resources defined in our SAM Template. We are using [change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html) and [approval actions](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-action-add.html) to demonstrate a manual approval workflow.
 
-Additional resources will be deployed as per the main architecture documentation.
+You will need to approve the deployment before the pipeline execution actually deploys any resources. Once approved, additional resources will be deployed as per the main architecture documentation.
 
 
 
@@ -68,7 +70,7 @@ To get started using the template found in this repository under pipeline/pipeli
   
 Optionally, if you are deploying from your own repository you will need to also provide:
     
-  * GitHubRepoName: The name of the GitHub repository hosting your source code. By default it points to the AWSLabs repo.
+  * GitHubRepoName: The name of the GitHub repository hosting your source code. By default it points to the aws-samples repo.
   * GitHubRepoBranch: The GitHub repo branch code pipeline should watch for changes on. This defaults to master, but any branch can be used.
   * GitHubRepoOwner: the GitHub repository owner. e.g. aws-samples
 
@@ -113,12 +115,13 @@ Once that has deployed and the application stack has also successfully deployed 
 
 ##### Approval Actions
 
-For any additional source code updates after the pipeline has been deployed and executed successfully you will be required to approve or reject the change-set execution. There will be an email sent to the admin email address, which will include a link to the approval request.
+Any deployments will require the approval of a change set before the deployment can proceed. There will be an email sent to the admin email address, which will include a link to the approval request. You will need to ensure you have confirmed the subscription in order to receive the notification.
 
-Alternatively you can do this via the console or cli [Approve or Reject an Approval Action in CodePipeline](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-approve-or-reject.html)
+Alternatively you can do this by navigating the console or you can use the cli [Approve or Reject an Approval Action in CodePipeline](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-approve-or-reject.html)
 
+To use the CLI it requires the creation of a JSON document and knowing the token for the last execution. See the documentation above for details on this.
 
-
+> aws codepipeline put-approval-result --cli-input-json file://approvalstage-approved.json
 
 ## Clean-up
 
