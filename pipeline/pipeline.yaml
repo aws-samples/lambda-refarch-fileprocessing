@@ -176,6 +176,26 @@ Resources:
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineBucket
+  PipelineEventRule:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Description: "CodePipelineEventRule"
+      EventPattern:
+        source: 
+          - aws.codepipeline
+        detail-type: 
+          - CodePipeline Pipeline Execution State Change
+        detail:
+          state: 
+            - FAILED
+      State: "ENABLED"
+      Targets:
+        - Arn: !Ref PipelineNotificationTopic
+          Id: "PipelineTopic"
+          InputTransformer:
+            InputTemplate: !Sub '"The ${AppName} Pipeline <pipeline> has failed. Go to https://console.aws.amazon.com/codepipeline/home/view/ for more information"'
+            InputPathsMap:
+              pipeline: "$.detail.pipeline"
   CodeBuildTrustRole:
     Description: Service role for AWS CodeBuild
     Type: AWS::IAM::Role
