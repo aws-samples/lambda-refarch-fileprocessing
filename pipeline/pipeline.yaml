@@ -66,6 +66,12 @@ Resources:
       BucketName: !Sub "pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}"
       VersioningConfiguration:
         Status: Enabled
+  PipelineNotificationTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        Subscription:
+          - Protocol: email
+            Endpoint: !Ref AlarmRecipientEmailAddress
   S3ArtifactBucketPolicy:
     DependsOn: [PipelineBucket]
     Description: S3 bucket policy for AWS CodePipeline access
@@ -144,6 +150,16 @@ Resources:
             TemplatePath: !Sub "${AppName}-BuildArtifact::${SAMOutputFile}"
             ParameterOverrides: !Sub '{"AlarmRecipientEmailAddress": "${AlarmRecipientEmailAddress}"}'
           RunOrder: 1
+        - Name: approve-changeset
+          InputArtifacts: []
+          ActionTypeId:
+            Category: Approval
+            Owner: AWS
+            Provider: Manual
+            Version: '1'
+          Configuration:
+            NotificationArn: !Ref PipelineNotificationTopic
+          RunOrder: 2
         - Name: execute-changeset
           InputArtifacts: []
           ActionTypeId:
@@ -156,7 +172,7 @@ Resources:
             StackName: !Sub "${AppName}"
             ActionMode: CHANGE_SET_EXECUTE
             ChangeSetName: pipeline-changeset
-          RunOrder: 2
+          RunOrder: 3
       ArtifactStore:
         Type: S3
         Location: !Ref PipelineBucket
