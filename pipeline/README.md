@@ -6,7 +6,7 @@ We use exactly the same method as in the manual deployment however we utilise [C
 ## CI/CD Pipeline Diagram
 
 
-![Reference Architecture - Real-time File Processing CI/CD Pipeline](img/lambda-refarch-fileprocessing-simple-pipeline.png)
+![Reference Architecture - Real-time File Processing CI/CD Pipeline](../img/lambda-refarch-fileprocessing-simple-pipeline.png)
 
 
 ## Pipeline Components
@@ -15,7 +15,7 @@ We use exactly the same method as in the manual deployment however we utilise [C
 ### CloudFormation Template
 
 
-pipeline/pipeline.yml is a CloudFormation template that will deploy all the required pipeline components. Once the stack has deployed the Pipeline will automatically execute and deploy the Serverless Application. See getting started for information on how to deploy the template.
+pipeline.yml is a CloudFormation template that will deploy all the required pipeline components. Once the stack has deployed the Pipeline will automatically execute and deploy the Serverless Application. See getting started for information on how to deploy the template.
 
 
 #### Deployed Resources
@@ -31,13 +31,13 @@ pipeline/pipeline.yml is a CloudFormation template that will deploy all the requ
 
 
 For this application we are hosting our source code in GitHub. Other [Source Integrations](https://docs.aws.amazon.com/codepipeline/latest/userguide/integrations-action-type.html#integrations-source) are available however this template focuses on GitHub. Whenever an update is pushed to the GitHub branch being
-monitored our pipeline will begin executing. The source stage will connect to GitHub using the credentials provided and clone the branch into our pipeline artefact bucket for use in the other stages. 
+monitored (default: master) our pipeline will begin executing. The source stage will connect to GitHub using the credentials provided and clone the branch into our pipeline artefact bucket for use in the other stages. 
 
 
 ### Build
 
 
-In order to run our SAM build and SAM package commands we are using [CodeBuild](https://aws.amazon.com/codebuild/), a fully managed continuous integration service . Codebuild allows us to perform a sequence of commands that we define in the [BuildSpec.yml](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html)
+In order to run our SAM build and SAM package commands we are using [CodeBuild](https://aws.amazon.com/codebuild/), a fully managed continuous integration service. Codebuild allows us to perform a sequence of commands that we define in the [buildSpec.yml](https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html)
 file that will execute inside the [build environment](https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref.html) we define using a docker container. For this project we are using the Amazon Linux 2 version 1.0 container with Python 3.7.
 
 Within the buildspec.yml we are:
@@ -70,7 +70,7 @@ Optionally, if you are deploying from your own repository you will need to also 
     
   * GitHubRepoName: The name of the GitHub repository hosting your source code. By default it points to the AWSLabs repo.
   * GitHubRepoBranch: The GitHub repo branch code pipeline should watch for changes on. This defaults to master, but any branch can be used.
-  * GitHubRepoOwner: the GitHub repository owner. e.g. awslabs
+  * GitHubRepoOwner: the GitHub repository owner. e.g. aws-samples
 
 
 
@@ -109,6 +109,15 @@ Once that has deployed and the application stack has also successfully deployed 
 
 
 > aws cloudformation deploy --template-file pipeline/pipeline.yaml --stack-name "lambda-file-refarch-pipeline-prod" --capabilities "CAPABILITY_IAM" "CAPABILITY_NAMED_IAM" --parameter-overrides AppName="lambda-file-refarch-prod" GitHubToken="**{replace with your GitHub Token}**" AlarmRecipientEmailAddress="**{replace with your admin email}**" GitHubRepoBranch="master"
+
+
+##### Approval Actions
+
+For any additional source code updates after the pipeline has been deployed and executed successfully you will be required to approve or reject the change-set execution. There will be an email sent to the admin email address, which will include a link to the approval request.
+
+Alternatively you can do this via the console or cli [Approve or Reject an Approval Action in CodePipeline](https://docs.aws.amazon.com/codepipeline/latest/userguide/approvals-approve-or-reject.html)
+
+
 
 
 ## Clean-up

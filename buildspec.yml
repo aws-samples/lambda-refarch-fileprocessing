@@ -15,4 +15,3 @@ phases:
 artifacts:
   files:
     - $SAM_OUTPUT_TEMPLATE
-    

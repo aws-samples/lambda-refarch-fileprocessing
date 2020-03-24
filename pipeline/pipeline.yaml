@@ -23,7 +23,7 @@ Parameters:
     Default: master
   GitHubRepoOwner:
     Type: String
-    Default: "awslabs"
+    Default: "aws-samples"
     Description: GitHub Repository Owner.
   GitHubToken:
     NoEcho: true
