@@ -79,12 +79,20 @@ Resources:
         Id: PipelineTopicPolicy
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-              - events.amazonaws.com
-          Action: sns:Publish
-          Resource: !Ref PipelineNotificationTopic
+          - Sid: CwEventsPut
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref PipelineNotificationTopic
+          - Sid: PipelinePut
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref PipelineNotificationTopic
       Topics:
         - !Ref PipelineNotificationTopic
   S3ArtifactBucketPolicy:
@@ -208,7 +216,7 @@ Resources:
         - Arn: !Ref PipelineNotificationTopic
           Id: "PipelineTopic"
           InputTransformer:
-            InputTemplate: !Sub '"The ${AppName} Pipeline <pipeline> in <account> has <state> at <time>. Go to https://console.aws.amazon.com/codepipeline/home/view/ for more information"'
+            InputTemplate: !Sub '"The ${AppName} Pipeline <pipeline> in account <account> has <state> at <time>. Go to https://console.aws.amazon.com/codepipeline/home/view/ for more information"'
             InputPathsMap:
               pipeline: "$.detail.pipeline"
               state: "$.detail.state"              
