@@ -181,13 +181,13 @@ Resources:
     Properties:
       Description: "CodePipelineEventRule"
       EventPattern:
-        source: 
-          - aws.codepipeline
-        detail-type: 
-          - CodePipeline Pipeline Execution State Change
+        source:
+        - aws.codepipeline
+        detail-type:
+        - CodePipeline Pipeline Execution State Change
         detail:
-          state: 
-            - FAILED
+          state:
+          - FAILED
       State: "ENABLED"
       Targets:
         - Arn: !Ref PipelineNotificationTopic
