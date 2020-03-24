@@ -61,15 +61,17 @@ For this example a rollout mechanism would involve adopting either a Blue / Gree
 
 ##### Notes
 
+This solution doesn't include an API frontend so the question doesn't apply.
+
 #### SEC 2: How do you manage your Serverless application’s security boundaries?
 
 * [ ] Question does not apply to this workload
 <br />
 
-* [x] **[Required]** Evaluate and define resource  policies
-* [x] **[Good]** Control network traffic at all  layers
-* [x] **[Best]** Smaller functions require fewer  permissions
-* [x] **[Required]** Use temporary credentials  between resources and components
+* [x] **[Required]** Evaluate and define resource policies
+* [x] **[Good]** Control network traffic at all layers
+* [x] **[Best]** Smaller functions require fewer permissions
+* [x] **[Required]** Use temporary credentials between resources and components
 <br />
 
 * [ ] None of these
@@ -102,7 +104,7 @@ We have individual functions for each different piece of business logic.
 
 ##### Notes
 
-This application doesn't have any stored secrets. The GitHub token is required by CodeBuild, this is passed as a string for CloudFormation, it is not however visible within the CloudFormation console. This could be improved by manually creating a secrets manager entry for the token and replacing the CloudFormation parameter for the token with the secrets manager value by utilising Dynamic References.
+This application doesn't have any stored secrets. The GitHub token is required by CodePipeline, this is passed as a string for CloudFormation, it is not however visible within the CloudFormation console. This could be improved by manually creating a secrets manager entry for the token and replacing the CloudFormation parameter for the token with the secrets manager value by utilising Dynamic References.
 https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html
 
 For reviewing dependencies and libraries we could integrate an automatic check into the pipeline. There are many tools and providers which can check code. Currently this is manual using PEP8 and Bandit manual checks. 
