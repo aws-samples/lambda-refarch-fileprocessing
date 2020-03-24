@@ -358,6 +358,10 @@ Resources:
           - iam:PassRole
           Resource: !GetAtt CloudFormationTrustRole.Arn
           Effect: Allow
+        - Action:
+          - sns:Publish
+          Resource: !Ref PipelineNotificationTopic
+          Effect: Allow
       Roles: [!Ref CodePipelineTrustRole]
 
 
