@@ -72,6 +72,21 @@ Resources:
         Subscription:
           - Protocol: email
             Endpoint: !Ref AlarmRecipientEmailAddress
+  PipelineSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Id: PipelineTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - events.amazonaws.com
+          Action: sns:Publish
+          Resource: !Ref PipelineNotificationTopic
+      Topics:
+        - !Ref PipelineNotificationTopic
   S3ArtifactBucketPolicy:
     DependsOn: [PipelineBucket]
     Description: S3 bucket policy for AWS CodePipeline access
@@ -179,23 +194,26 @@ Resources:
   PipelineEventRule:
     Type: "AWS::Events::Rule"
     Properties:
-      Description: "CodePipelineEventRule"
+      Description: "Trigger notifications based on pipeline state change to Failure"
       EventPattern:
         source:
-        - aws.codepipeline
+        - "aws.codepipeline"
         detail-type:
         - CodePipeline Pipeline Execution State Change
         detail:
           state:
-          - FAILED
+          - "FAILED"
       State: "ENABLED"
       Targets:
         - Arn: !Ref PipelineNotificationTopic
           Id: "PipelineTopic"
           InputTransformer:
-            InputTemplate: !Sub '"The ${AppName} Pipeline <pipeline> has failed. Go to https://console.aws.amazon.com/codepipeline/home/view/ for more information"'
+            InputTemplate: !Sub '"The ${AppName} Pipeline <pipeline> in <account> has <state> at <time>. Go to https://console.aws.amazon.com/codepipeline/home/view/ for more information"'
             InputPathsMap:
               pipeline: "$.detail.pipeline"
+              state: "$.detail.state"              
+              time: "$.time"
+              account: "$.account"
   CodeBuildTrustRole:
     Description: Service role for AWS CodeBuild
     Type: AWS::IAM::Role
