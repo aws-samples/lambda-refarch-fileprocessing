@@ -81,7 +81,7 @@ sam deploy \
     --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
     --region region \
-    --tags Project=lambda-refarch-fileprocessing \
+    --tags Project=lambda-file-refarch \
     --parameter-overrides AlarmRecipientEmailAddress=<your email address> \
     --capabilities CAPABILITY_IAM
 ```
@@ -90,7 +90,7 @@ You will receive an email asking you to confirm subscription to the `lambda-file
 
 ## Testing the Example
 
-After you have created the stack using the CloudFormation template, you can test the system by uploading a Markdown file to the InputBucket that was created in the stack. You can use the sample-1.md and sample-2.md files in the repository as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
+After you have created the stack using the CloudFormation template, you can test the system by uploading a Markdown file to the InputBucket that was created in the stack. You can use the *sample-1.md* and *sample-2.md* files in the repository as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack and collect the sentiment of each document. The CloudWatch logs for each of the functions will contain details of their execution.
 
 You can use the following commands to copy a sample file from the provided S3 bucket into the input bucket of your stack.
 
@@ -168,6 +168,10 @@ creates the following resources:
 
 - **NotificationQueuePolicy** - A SQS queue policy that allows the **NotificationTopic** to publish events to the **ConversionQueue** and **SentimentQueue**.
 
+- **ApplyS3NotificationLambdaFunction** - A Lambda function that adds a S3 bucket notification when objects are created in the **InputBucket**.  The function is called by **ApplyInputBucketTrigger**.
+
+- **ApplyInputBucketTrigger** - A CloudFormation Custom Resource that invokes the **ApplyS3NotificationLambdaFunction** when a CloudFormation stack is created.
+
 - **ConversionSubscription** - A SNS subscription that allows the **ConversionQueue** to receive messages from **NotificationTopic**.
 
 - **ConversionQueue** - A SQS queue that is used to store events for conversion from Markdown to HTML.
@@ -177,6 +181,8 @@ creates the following resources:
 - **ConversionFunction** - A Lambda function that takes the input file, converts it to HTML, and stores the resulting file to **ConversionTargetBucket**.  Errors in the function will be sent to the **ConversionDlq**.
 
 - **ConversionTargetBucket** - A S3 bucket that stores the converted HTML.
+
+- **SentimentSubscription** - A SNS subscription that allows the **SentimentQueue** to receive messages from **NotificationTopic**.
 
 - **SentimentQueue** - A SQS queue that is used to store events for sentiment analysis processing.
 

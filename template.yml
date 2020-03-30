@@ -27,10 +27,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${AWS::StackName}-${AWS::AccountId}-input-bucket
-      NotificationConfiguration:
-        TopicConfigurations:
-        - Event: s3:ObjectCreated:*
-          Topic: !Ref NotificationTopic
 
   NotificationTopic:
     Type: AWS::SNS::Topic
@@ -71,6 +67,30 @@ Resources:
         - !Ref ConversionQueue
         - !Ref SentimentQueue
 
+  ApplyS3NotificationLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: notification.handler
+      Runtime: python3.6
+      CodeUri: ./src/notification/
+      Timeout: 60
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutBucketNotification
+              Resource:
+                - !Sub 'arn:aws:s3:::${InputBucket}'
+                - !Sub 'arn:aws:s3:::${InputBucket}/*'
+
+  ApplyInputBucketTrigger:
+    Type: Custom::ApplyS3Notification
+    Properties:
+      ServiceToken: !GetAtt ApplyS3NotificationLambdaFunction.Arn
+      S3Bucket: !Ref InputBucket
+      SnsArn: !Ref NotificationTopic
+      NotificationId: S3ObjectCreatedEvent
+
   ConversionSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -94,7 +114,7 @@ Resources:
       VisibilityTimeout: 300
           
   ConversionFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     DependsOn: ConversionTargetBucket
     Properties:
       Description: Convert and store HTML representation of uploaded S3 objects
@@ -115,12 +135,7 @@ Resources:
                 - s3:GetObject
                 - s3:GetObjectAcl
                 - s3:GetObjectVersion
-              Resource:
-                Fn::Join:
-                  - ''
-                  - - 'arn:aws:s3:::'
-                    - Ref: InputBucket
-                    - '/*'
+              Resource: !Sub 'arn:aws:s3:::${InputBucket}/*'
             - Effect: Allow
               Action:
                 - s3:ListBucket
@@ -188,7 +203,7 @@ Resources:
       VisibilityTimeout: 300
 
   SentimentFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     Properties:
       Description: Detect and store sentiment from uploaded S3 objects
       Handler: sentiment.handler
