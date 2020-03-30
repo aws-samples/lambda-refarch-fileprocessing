@@ -24,7 +24,6 @@ If our Conversion Lambda function fails to process the messages, the function se
 
 Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function execution environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new HTML file to an output S3 bucket.  If our function execution results in an error, we will 
 
-
 ### Sentiment Analysis Workflow
 
 We are using AWS' AI/ML service [Amazon Comprehend](https://aws.amazon.com/comprehend/) which is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
@@ -36,37 +35,19 @@ Once we have our sentiment we persist the result to our [DynamoDB](https://aws.a
 If our Sentiment Lambda function fails to process the messages, the function sends the event to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
 
 
-## Deploying the Application
+### Using SAM to Build and Deploy the Application
 
-The application is built, packaged, and deployed using the [AWS SAM CLI](https://github.com/awslabs/aws-sam-cli).  
+#### Build
 
-You can use the provided [AWS SAM template](./template.yml) to launch a stack that demonstrates the Lambda file processing reference architecture. Details about the resources created by this template are provided in the *SAM Template Resources* section of this document.
-
-The sample can be built and deployed by running the script `deploy.sh`.
-
-```bash
-bash deploy.sh s3_bucketname aws_region email_address_to_receive_alarm_messages
-
-# eg bash deploy.sh my_s3_bucket us-east-1 user@mydomain.com
-```
-
-**Note**
-
-The S3 bucket *s3_bucketname* must exist prior to running the *deploy.sh* script.  This bucket is used  the sam package command to store the deployment package. If you need to create a bucket for this purpose, run the following command to create an Amazon S3 bucket: 
-
-```bash
-aws s3 mb s3://bucketname --region region  # Example regions: us-east-1, ap-east-1, eu-central-1, sa-east-1
-```
-
-### What Is Happening in the Script?
-
-The *sam build* command builds your application dependencies and copies the source code to folders under *.aws-sam/build* to be zipped and uploaded to Lambda. 
+The AWS SAM CLI comes with abstractions for a number of Lambda runtimes to build your dependencies, and copies the source code into staging folders so that everything is ready to be packaged and deployed. The *sam build* command builds any dependencies that your application has, and copies your application source code to folders under *.aws-sam/build* to be zipped and uploaded to Lambda. 
 
 ```bash
 sam build --use-container
 ```
 
-The *sam package* command takes your Lambda handler source code and any third-party dependencies, zips everything, and uploads the zip file to your Amazon S3 bucket. That bucket and file location are then noted in the packaged-template.yaml file. The generated packaged-template.yaml file is used to deploy the application. 
+#### Package
+
+Next, run *sam package*.  This command takes your Lambda handler source code and any third-party dependencies, zips everything, and uploads the zip file to your Amazon S3 bucket. That bucket and file location are then noted in the packaged-template.yaml file. You use the generated packaged-template.yaml file to deploy the application in the next step. 
 
 ```bash
 sam package \
@@ -74,19 +55,34 @@ sam package \
     --s3-bucket bucketname
 ```
 
-The *sam deploy* command deploys your application to the AWS Cloud.
+**Note**
+
+For *bucketname* in this command, you need an Amazon S3 bucket that the sam package command can use to store the deployment package. The deployment package is used when you deploy your application in a later step. If you need to create a bucket for this purpose, run the following command to create an Amazon S3 bucket: 
+
+```bash
+aws s3 mb s3://bucketname --region region  # Example regions: us-east-1, ap-east-1, eu-central-1, sa-east-1
+```
+
+#### Deploy
+
+This command deploys your application to the AWS Cloud. It's important that this command explicitly includes both of the following:
+
+  * The AWS Region to deploy to. This Region must match the Region of the Amazon S3 source bucket.
+
+  * The CAPABILITY_IAM parameter, because creating new Lambda functions involves creating new IAM roles.
 
 ```bash
 sam deploy \
     --template-file packaged-template.yml \
     --stack-name lambda-file-refarch \
     --region region \
-    --tags Project=lambda-file-refarch \
+    --tags Project=lambda-refarch-fileprocessing \
     --parameter-overrides AlarmRecipientEmailAddress=<your email address> \
     --capabilities CAPABILITY_IAM
 ```
 
 You will receive an email asking you to confirm subscription to the `lambda-file-refarch-AlarmTopic` SNS topic that will receive alerts should either the `ConversionDlq` SQS queue or `SentimentDlq` SQS queue receive messages.
+
 
 ## Testing the Example
 

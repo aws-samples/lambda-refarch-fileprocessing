@@ -11,9 +11,9 @@ echo "Cleaning up S3 buckets..." && for bucket in InputBucket ConversionTargetBu
 done
 
 echo "Deleting CloudFormation stack..." && aws cloudformation delete-stack \
-    --stack-name lambda-file-refarch
+--stack-name lambda-file-refarch
 
-echo "Clearing out CloudWatch Log Groups..." && for log_group in $(aws logs describe-log-groups --log-group-name-prefix /aws/lambda/lambda-file-refarch- --query "logGroups[*].logGroupName" --output text); do
+echo "Clearing out CloudWatch Log Groups..." && for log_group in $(aws logs describe-log-groups --log-group-name-prefix '/aws/lambda/lambda-file-refarch-' --query "logGroups[*].logGroupName" --output text); do
   echo "Removing log group ${log_group}..."
   aws logs delete-log-group --log-group-name ${log_group}
   echo
