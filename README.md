@@ -35,9 +35,19 @@ Once we have our sentiment we persist the result to our [DynamoDB](https://aws.a
 If our Sentiment Lambda function fails to process the messages, the function sends the event to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
 
 
-### Using SAM to Build and Deploy the Application
+## Building and Deploying the Application with the AWS Serverless Application Model (AWS SAM)
 
-#### Build
+This application is deployed using the AWS Serverless Application Model (AWS SAM).  AWS SAM is an open-source framework that enables you to build serverless applications on AWS.  It provides you with a template specification to define your serverless application, and a command line interface (CLI) tool.
+
+### Pre-requisites
+
+* [AWS CLI version 2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+
+* [AWS SAM CLI (0.41.0 or higher)](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
+
+* [Docker](https://docs.docker.com/install/)
+
+### Build
 
 The AWS SAM CLI comes with abstractions for a number of Lambda runtimes to build your dependencies, and copies the source code into staging folders so that everything is ready to be packaged and deployed. The *sam build* command builds any dependencies that your application has, and copies your application source code to folders under *.aws-sam/build* to be zipped and uploaded to Lambda. 
 
@@ -45,7 +55,11 @@ The AWS SAM CLI comes with abstractions for a number of Lambda runtimes to build
 sam build --use-container
 ```
 
-#### Package
+**Note**
+
+Be sure to use v0.41.0 of the AWS SAM CLI or newer.  Failure to use the proper version of the AWS SAM CLI will result in a `InvalidDocumentException` exception.  The `EventInvokeConfig` property is not recognized in earlier versions of the AWS SAM CLI.  To confirm your version of AWS SAM, run the command `sam --version`.
+
+### Package
 
 Next, run *sam package*.  This command takes your Lambda handler source code and any third-party dependencies, zips everything, and uploads the zip file to your Amazon S3 bucket. That bucket and file location are then noted in the packaged-template.yaml file. You use the generated packaged-template.yaml file to deploy the application in the next step. 
 
@@ -63,7 +77,7 @@ For *bucketname* in this command, you need an Amazon S3 bucket that the sam pack
 aws s3 mb s3://bucketname --region region  # Example regions: us-east-1, ap-east-1, eu-central-1, sa-east-1
 ```
 
-#### Deploy
+### Deploy
 
 This command deploys your application to the AWS Cloud. It's important that this command explicitly includes both of the following:
 
