@@ -104,9 +104,6 @@ Resources:
     DependsOn: ConversionDlq
     Properties:
       VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ConversionDlq.Arn
-        maxReceiveCount: 5
 
   ConversionDlq:
     Type: AWS::SQS::Queue
@@ -193,9 +190,6 @@ Resources:
     DependsOn: SentimentDlq
     Properties:
       VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SentimentDlq.Arn
-        maxReceiveCount: 5
 
   SentimentDlq:
     Type: AWS::SQS::Queue

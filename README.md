@@ -2,7 +2,7 @@
 
 The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. 
 
-In this example application we deliver the notes from an interview in Markdown format to S3.  CloudWatch Events is used to trigger multiple processing flows - one to convert and persist Markdown files to HTML and another to detect and persist sentiment.
+In this example application, we deliver notes from an interview in Markdown format to S3.  S3 Events are used to trigger multiple processing flows - one to convert and persist Markdown files to HTML and another to detect and persist sentiment.
 
 ## Architectural Diagram
 
@@ -12,7 +12,7 @@ In this example application we deliver the notes from an interview in Markdown f
 
 ### Event Trigger
 
-Unlike batch processing, in this architecture we process each individual file as it arrives. To achive this we utilize [AWS S3 Events](https://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html) and [Amazon Simple Notification Service](https://docs.aws.amazon.com/sns/latest/dg/welcome.html). When an object is created in S3, an event is emitted to a SNS topic. We deliver our event to 2 seperate [SQS Queues](https://aws.amazon.com/sqs/), representing 2 different workflows. Refer to [What is Amazon Simple Notification Service?](https://docs.aws.amazon.com/sns/latest/dg/welcome.html) for more information about eligible targets.
+In this architecture, individual files are processed as they arrive. To achive this, we utilize [AWS S3 Events](https://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html) and [Amazon Simple Notification Service](https://docs.aws.amazon.com/sns/latest/dg/welcome.html). When an object is created in S3, an event is emitted to a SNS topic. We deliver our event to 2 seperate [SQS Queues](https://aws.amazon.com/sqs/), representing 2 different workflows. Refer to [What is Amazon Simple Notification Service?](https://docs.aws.amazon.com/sns/latest/dg/welcome.html) for more information about eligible targets.
 
 ### Conversion Workflow
 
@@ -186,7 +186,7 @@ creates the following resources:
 
 - **ConversionQueue** - A SQS queue that is used to store events for conversion from Markdown to HTML.
 
-- **ConversionDlq** - A SQS queue that is used to capture messages that cannot be processed by the **ConversionFunction**.  The *RedrivePolicy* on the **ConversionQueue** is used to manage how traffic makes it to this queue.
+- **ConversionDlq** - A SQS queue that is used to capture messages that cannot be processed by the **ConversionFunction**.
 
 - **ConversionFunction** - A Lambda function that takes the input file, converts it to HTML, and stores the resulting file to **ConversionTargetBucket**.  Errors in the function will be sent to the **ConversionDlq**.
 
@@ -196,13 +196,13 @@ creates the following resources:
 
 - **SentimentQueue** - A SQS queue that is used to store events for sentiment analysis processing.
 
-- **SentimentDlq** - A SQS queue that is used to capture messages that cannot be processed by the **SentimentFunction**.  The *RedrivePolicy* on the **SentimentQueue** is used to manage how traffic makes it to this queue.
+- **SentimentDlq** - A SQS queue that is used to capture messages that cannot be processed by the **SentimentFunction**.
 
 - **SentimentFunction** - A Lambda function that takes the input file, performs sentiment analysis, and stores the output to the **SentimentTable**.  Errors in the function will be sent to the **SentimentDlq**.
 
 - **SentimentTable** - A DynamoDB table that stores the input file along with the sentiment.
 
-- **AlarmTopic** - A SNS topic that has an email as a subscriber.  This topic is used to receive alarms from the **ConversionDlqAlarm** and **SentimentDlqAlarm**.
+- **AlarmTopic** - A SNS topic that has an email as a subscriber.  This topic is used to receive alarms from the **ConversionDlqAlarm**, **SentimentDlqAlarm**, **ConversionQueueAlarm**, **SentimentQueueAlarm**, **ConversionFunctionErrorRateAlarm**, **SentimentFunctionErrorRateAlarm**, **ConversionFunctionThrottleRateAlarm**, and **SentimentFunctionThrottleRateAlarm**.
 
 - **ConversionDlqAlarm** - A CloudWatch Alarm that detects when there there are any messages sent to the **ConvesionDlq** within a 1 minute period and sends a notification to the **AlarmTopic**.
 
