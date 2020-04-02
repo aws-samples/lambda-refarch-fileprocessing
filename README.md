@@ -20,7 +20,7 @@ We target a SQS queue for this workflow. Sending the JSON event to SQS first rat
 
 The Lambda service polls our queue on our behalf. When messages are available they will be delivered to our function. Lambda can automatically scale with the number of messages on the queue. Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
 
-If our Conversion Lambda function fails to process the messages, the function sends the event to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Conversion DLQ.
+If our Conversion Lambda function cannot remove the messages from the Conversion queue, they are sent to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Conversion DLQ.
 
 Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function execution environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new HTML file to an output S3 bucket.  If our function execution results in an error, we will 
 
@@ -32,7 +32,7 @@ The Sentiment workflow uses the same SQS-to-Lambda Function pattern as the Cover
 
 Once we have our sentiment we persist the result to our [DynamoDB](https://aws.amazon.com/dynamodb/) table.
 
-If our Sentiment Lambda function fails to process the messages, the function sends the event to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
+If our Sentiment Lambda function cannot remove the messages from the Sentiment SQS queue, they are sent to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
 
 
 ## Building and Deploying the Application with the AWS Serverless Application Model (AWS SAM)
@@ -186,9 +186,9 @@ creates the following resources:
 
 - **ConversionQueue** - A SQS queue that is used to store events for conversion from Markdown to HTML.
 
-- **ConversionDlq** - A SQS queue that is used to capture messages that cannot be processed by the **ConversionFunction**.
+- **ConversionDlq** - A SQS queue that is used to capture messages that cannot be processed by the **ConversionFunction**.  The *RedrivePolicy* on the **ConversionQueue** is used to manage how traffic makes it to this queue.
 
-- **ConversionFunction** - A Lambda function that takes the input file, converts it to HTML, and stores the resulting file to **ConversionTargetBucket**.  Errors in the function will be sent to the **ConversionDlq**.
+- **ConversionFunction** - A Lambda function that takes the input file, converts it to HTML, and stores the resulting file to **ConversionTargetBucket**.
 
 - **ConversionTargetBucket** - A S3 bucket that stores the converted HTML.
 
@@ -196,9 +196,9 @@ creates the following resources:
 
 - **SentimentQueue** - A SQS queue that is used to store events for sentiment analysis processing.
 
-- **SentimentDlq** - A SQS queue that is used to capture messages that cannot be processed by the **SentimentFunction**.
+- **SentimentDlq** - A SQS queue that is used to capture messages that cannot be processed by the **SentimentFunction**.  The *RedrivePolicy* on the **SentimentQueue** is used to manage how traffic makes it to this queue.
 
-- **SentimentFunction** - A Lambda function that takes the input file, performs sentiment analysis, and stores the output to the **SentimentTable**.  Errors in the function will be sent to the **SentimentDlq**.
+- **SentimentFunction** - A Lambda function that takes the input file, performs sentiment analysis, and stores the output to the **SentimentTable**.
 
 - **SentimentTable** - A DynamoDB table that stores the input file along with the sentiment.
 

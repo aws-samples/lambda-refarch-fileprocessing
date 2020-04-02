@@ -45,7 +45,7 @@ Resources:
               StringEquals:
                 aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnEquals:
-                aws:SourceArn: !Sub "arn:aws:s3:::${InputBucket}"
+                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-inputbucket"
       Topics:
         - !Ref NotificationTopic
 
@@ -104,6 +104,9 @@ Resources:
     DependsOn: ConversionDlq
     Properties:
       VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConversionDlq.Arn
+        maxReceiveCount: 5
 
   ConversionDlq:
     Type: AWS::SQS::Queue
@@ -162,11 +165,6 @@ Resources:
           TARGET_BUCKET: !Ref ConversionTargetBucket
           CONVERSION_QUEUE: !Ref ConversionQueue
           LOG_LEVEL: !Ref ConversionLogLevel
-      EventInvokeConfig:
-        DestinationConfig:
-          OnFailure:
-            Type: SQS
-            Destination: !GetAtt ConversionDlq.Arn
       Events:
         ConversionQueueReaderEvent:
           Type: SQS
@@ -190,6 +188,9 @@ Resources:
     DependsOn: SentimentDlq
     Properties:
       VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SentimentDlq.Arn
+        maxReceiveCount: 5
 
   SentimentDlq:
     Type: AWS::SQS::Queue
@@ -260,11 +261,6 @@ Resources:
           SENTIMENT_TABLE: !Ref SentimentTable
           SENTIMENT_QUEUE: !Ref SentimentQueue
           LOG_LEVEL: !Ref SentimentLogLevel
-      EventInvokeConfig:
-        DestinationConfig:
-          OnFailure:
-            Type: SQS
-            Destination: !GetAtt SentimentDlq.Arn
       Events:
         SentimentQueueReaderEvent:
           Type: SQS
