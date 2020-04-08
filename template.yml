@@ -38,14 +38,15 @@ Resources:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: "*"
+            Principal:
+              Service: "s3.amazonaws.com"
             Action: SNS:Publish
             Resource: !Ref NotificationTopic
             Condition:
               StringEquals:
                 aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnEquals:
-                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-inputbucket"
+                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-input-bucket"
       Topics:
         - !Ref NotificationTopic
 
@@ -78,6 +79,13 @@ Resources:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
+              Action: sqs:PurgeQueue
+              Resource:
+                - !GetAtt ConversionQueue.Arn
+                - !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
               Action: s3:PutBucketNotification
               Resource:
                 - !Sub 'arn:aws:s3:::${InputBucket}'
@@ -90,6 +98,7 @@ Resources:
       S3Bucket: !Ref InputBucket
       SnsArn: !Ref NotificationTopic
       NotificationId: S3ObjectCreatedEvent
+      SqsUrls: [ !Ref ConversionQueue, !Ref SentimentQueue ]
 
   ConversionSubscription:
     Type: AWS::SNS::Subscription
