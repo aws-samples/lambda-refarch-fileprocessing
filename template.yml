@@ -549,7 +549,7 @@ Resources:
             },
             {
               "type":"metric",
-              "x":0,
+              "x":12,
               "y":0,
               "width":12,
               "height":6,
@@ -568,25 +568,64 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":6,
               "width":12,
               "height":6,
               "properties":{
                 "metrics":[
-                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}", { "id": "m1", "visible": false } ],
-                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
-                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${ConversionFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
                 ],
                 "period":60,
-                "stat":"Sum",
+                "stat":"Maximum",
                 "region": "${AWS::Region}",
-                "title":"Conversion Function Throttle Rate"
+                "title":"Conversion Function Concurrent Executions"
               }
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":6,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${ConversionFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                  [ "...", { "label": "Duration (Max)" } ],
+                  [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Conversion Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Conversion Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":18,
               "width":12,
               "height":6,
               "properties":{
@@ -607,7 +646,7 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":24,
               "width":12,
               "height":6,
               "properties":{
@@ -627,8 +666,8 @@ Resources:
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":24,
               "width":12,
               "height":6,
               "properties":{
@@ -646,25 +685,64 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":36,
               "width":12,
               "height":6,
               "properties":{
                 "metrics":[
-                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}", { "id": "m1", "visible": false } ],
-                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
-                  [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${SentimentFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
                 ],
                 "period":60,
-                "stat":"Sum",
+                "stat":"Maximum",
                 "region": "${AWS::Region}",
-                "title":"Sentiment Function Throttle Rate"
+                "title":"Sentiment Function Concurrent Executions"
               }
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":36,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${SentimentFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                    [ "...", { "label": "Duration (Max)" } ],
+                    [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Sentiment Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 42,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Sentiment Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":42,
               "width":12,
               "height":6,
               "properties":{
@@ -680,6 +758,50 @@ Resources:
                 "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment DLQ Length"
+              }
+            },
+            {
+              "type": "text",
+              "x": 0,
+              "y": 48,
+              "width": 24,
+              "height": 1,
+              "properties": {
+                  "markdown": "\n# Alarms"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "ConversionDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${ConversionDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "SentimentDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${SentimentDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
               }
             }
           ]
