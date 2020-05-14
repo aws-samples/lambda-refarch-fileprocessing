@@ -1,12 +1,17 @@
-version: 0.0
-containers:
-    LambdaFunctions:
-        phases:
-            during_build:
-                commands:
-                    - cd src/data-processor-1 && pwd && npm install async marked
-                    - cd src/data-processor-2 && npm install  async marked && ls 
-                    - aws cloudformation package --template $INPUT_FILE --s3-bucket $S3_BUCKET --output-template post-sam.yaml
-        artifacts:
-            files:
-                - post-sam.yaml
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+    commands:
+      - pip install --upgrade aws-sam-cli
+  build:
+    commands:
+      - sam build --use-container
+  post_build:
+    commands:
+      - sam package --output-template-file $SAM_OUTPUT_TEMPLATE --s3-bucket $ARTIFACT_BUCKET
+artifacts:
+  files:
+    - $SAM_OUTPUT_TEMPLATE
