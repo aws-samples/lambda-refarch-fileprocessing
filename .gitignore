@@ -1,3 +1,4 @@
 packaged-template.yml
 .aws-sam
+.idea
 __pycache__
