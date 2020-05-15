@@ -1,16 +1,21 @@
-import boto3
-import logging
 import json
+import logging
+import os
+
+import boto3
 import cfnresponse
 
-s3Client = boto3.client('s3')
-sqsClient = boto3.client('sqs')
+
+aws_region = os.environ['AWS_REGION']
+
+s3_client = boto3.client('s3', region_name=aws_region)
+sqs_client = boto3.client('sqs', region_name=aws_region)
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 def addBucketNotification(bucket_name, notification_id, sns_arn, sqs_urls):
-    notificationResponse = s3Client.put_bucket_notification_configuration(
+    notificationResponse = s3_client.put_bucket_notification_configuration(
         Bucket=bucket_name,
         NotificationConfiguration={
             'TopicConfigurations': [
@@ -30,7 +35,7 @@ def addBucketNotification(bucket_name, notification_id, sns_arn, sqs_urls):
     # the Conversion and Sentiment Lambda functions.
     for sqs_url in sqs_urls:
         logger.info(f'Clearing queue {sqs_url}')
-        purgeResponse = sqsClient.purge_queue(QueueUrl=sqs_url)
+        purgeResponse = sqs_client.purge_queue(QueueUrl=sqs_url)
         logger.info(f'PurgeQueue response: {json.dumps(purgeResponse)}')
 
     return notificationResponse

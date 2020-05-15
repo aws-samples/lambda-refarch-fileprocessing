@@ -16,19 +16,21 @@ patch_all()
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
 
+aws_region = os.environ['AWS_REGION']
+
 s_table = os.getenv('SENTIMENT_TABLE')
 s_queue = os.getenv('SENTIMENT_QUEUE')
 
 log_level = os.getenv('LOG_LEVEL')
 
-comprehend_client = boto3.client('comprehend')
+comprehend_client = boto3.client('comprehend', region_name=aws_region)
 
-s3_resource = boto3.resource('s3')
+s3_resource = boto3.resource('s3', region_name=aws_region)
 
-dynamodb_resource = boto3.resource('dynamodb')
+dynamodb_resource = boto3.resource('dynamodb', region_name=aws_region)
 table = dynamodb_resource.Table(s_table)
 
-sqs_client = boto3.client('sqs')
+sqs_client = boto3.client('sqs', region_name=aws_region)
 
 log = logging.getLogger()
 

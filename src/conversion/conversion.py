@@ -16,15 +16,17 @@ patch_all()
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
 
+aws_region = os.environ['AWS_REGION']
+
 conversion_queue = os.getenv('CONVERSION_QUEUE')
 
 target_bucket = os.getenv('TARGET_BUCKET')
 
 log_level = os.getenv('LOG_LEVEL')
 
-s3_resource = boto3.resource('s3')
+s3_resource = boto3.resource('s3', region_name=aws_region)
 
-sqs_client = boto3.client('sqs')
+sqs_client = boto3.client('sqs', region_name=aws_region)
 
 log = logging.getLogger()
 
