@@ -301,15 +301,15 @@ Resources:
           Action:
             - dynamodb:GetItem
             - dynamodb:DeleteItem
-          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table-${AppName}-SentimentTable-*"
+          Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppName}-SentimentTable-*"
         - Effect: Allow
           Action:
             - s3:PutObject
-            - s3:GetObect
+            - s3:GetObject
             - s3:DeleteObject
           Resource:
-            - !Sub "arn:aws:s3:::*-*-inputbucket"
-            - !Sub "arn:aws:s3:::${AppName}-conversiontargetbucket-*"
+            - !Sub "arn:aws:s3:::${AppName}-${AWS::AccountId}-inputbucket/*"
+            - !Sub "arn:aws:s3:::${AppName}-conversiontargetbucket-*/*"
         - Effect: Allow
           Action: 
             - kms:GenerateDataKey*

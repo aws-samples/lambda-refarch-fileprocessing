@@ -73,9 +73,20 @@ function clean {
 
 ## Get Stack Resources
 
-BUCKET_IN=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'InputBucket' --query "StackResourceDetail.PhysicalResourceId" --output text)
-BUCKET_OUT=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'ConversionTargetBucket' --query "StackResourceDetail.PhysicalResourceId" --output text)
-DYNAMO_TABLE=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'SentimentTable' --query "StackResourceDetail.PhysicalResourceId" --output text)
+BUCKET_IN=$(aws cloudformation describe-stack-resource \
+--stack-name "$STACK" --logical-resource-id 'InputBucket' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text) || echo -e "Couldn't get stack details" ; exit 1
+
+BUCKET_OUT=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
+--logical-resource-id 'ConversionTargetBucket' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text) || echo -e "Couldn't get stack details" ; exit 1
+
+DYNAMO_TABLE=$(aws cloudformation describe-stack-resource \
+--stack-name "$STACK" --logical-resource-id 'SentimentTable' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text) || echo -e "Couldn't get stack details" ; exit 1
 
 echo "Input Bucket: $BUCKET_IN"
 echo "Ouput Bucket: $BUCKET_OUT"

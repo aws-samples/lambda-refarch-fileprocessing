@@ -23,7 +23,7 @@ pipeline.yml is a CloudFormation template that will deploy all the required pipe
 
 * Pipeline S3 bucket, used to store pipeline artefacts that are passed between stages.
 * CodePipeline
-* CodeBuild Project
+* CodeBuild Build and Test Projects
 * Roles for CodePipeline, CodeBuild and the CloudFormation Deployment
 * SNS Topic for Pipeline notifications
 * CloudWatch Event for Pipeline Failures
@@ -58,6 +58,12 @@ To deploy our application stack we are not using SAM Deploy, CodePipeline doesn'
 
 You will need to approve the deployment before the pipeline execution actually deploys any resources. Once approved, additional resources will be deployed as per the main architecture documentation.
 
+
+### Test
+
+The test stage will execute a bash script to perform an end to end test of the application. It uploads 24 sample files from the tests directory and checks for outputs and sentiment DB entries.
+
+If it cannot locate either the output files or DB entries the pipeline will fail. Once the tests successfully complete the script removes the test resources. 
 
 
 ## Getting started
