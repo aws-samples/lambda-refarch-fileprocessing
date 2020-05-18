@@ -285,13 +285,18 @@ Resources:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
+          Resource:
+            - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-build*"
+            - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AppName}-test*"
         - Effect: Allow
           Action: ["s3:*"]
           Resource: !Sub "arn:aws:s3:::pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
         - Effect: Allow
           Action: ["s3:*"]
           Resource: !Sub "arn:aws:s3:::pipeline-${AWS::AccountId}-${AWS::Region}-${AppName}/*"
+        - Effect: Allow
+          Action: ["cloudformation:DescribeStackResource"]
+          Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppName}/*"
         - Effect: Allow
           Action:
             - dynamodb:GetItem
@@ -447,7 +452,9 @@ Resources:
         - Action: 
             - codebuild:StartBuild
             - codebuild:BatchGetBuilds
-          Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-build"
+          Resource:
+            - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-build"
+            - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AppName}-test"
           Effect: Allow
         - Action: 
             - cloudformation:*

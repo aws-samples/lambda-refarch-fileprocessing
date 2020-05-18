@@ -12,6 +12,8 @@ phases:
   post_build:
     commands:
       - sam package --output-template-file $SAM_OUTPUT_TEMPLATE --s3-bucket $ARTIFACT_BUCKET
+      - bash -c "if [ /"$CODEBUILD_BUILD_SUCCEEDING/" == /"0/" ]; then exit 1; fi"
+      - echo Build stage successfully completed on `date`
 artifacts:
   files:
     - $SAM_OUTPUT_TEMPLATE
