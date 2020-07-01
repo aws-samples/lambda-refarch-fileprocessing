@@ -91,14 +91,14 @@ You will receive an email asking you to confirm subscription to the `lambda-file
 
 ## Testing the Example
 
-After you have created the stack using the CloudFormation template, you can test the system by uploading a Markdown file to the InputBucket that was created in the stack. You can use the sample-1.md and sample-2.md files in the repository as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
+After you have created the stack using the CloudFormation template, you can manually test the system by uploading a Markdown file to the InputBucket that was created in the stack. You can use the any of the sample-xx.md files in the repository /tests directory as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
 
 You can use the following commands to copy a sample file from the provided S3 bucket into the input bucket of your stack.
 
 ```bash
 INPUT_BUCKET=$(aws cloudformation describe-stack-resource --stack-name lambda-file-refarch --logical-resource-id InputBucket --query "StackResourceDetail.PhysicalResourceId" --output text)
-aws s3 cp ./sample-1.md s3://${INPUT_BUCKET}/sample-1.md
-aws s3 cp ./sample-2.md s3://${INPUT_BUCKET}/sample-2.md
+aws s3 cp ./tests/sample-01.md s3://${INPUT_BUCKET}/sample-01.md
+aws s3 cp ./tests/sample-02.md s3://${INPUT_BUCKET}/sample-02.md
 ```
 
 Once the input files has been uploaded to the input bucket, a series of events are put into motion.

@@ -37,6 +37,8 @@ function clean {
 
     for f in "${TEST_FILES[@]}"; do
 
+      ## We know our output files will have a html extention so we need to substitute md for html when working with the output.   
+
       FILE_NAME=$(cut -d "/" -f2- <<< "$f")
 
       echo "Removing from output : ${FILE_NAME/md/html}"
