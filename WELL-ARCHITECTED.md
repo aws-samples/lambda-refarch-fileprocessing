@@ -81,7 +81,7 @@
 
 > * We use IAM policy to ensure that resources can only be called by other resources that should be calling them.
 >
-> * The pipeline will assume a role with only the permissions it requires to deploy the application. This will either be only being able to perform a specific action on multiple resources or any action on a particular resource. 
+> * All application components will assume a role with only the permissions it requires in order to perform it's function. This will either be only being able to perform a specific action on multiple resources or any action on a particular resource. 
 >
 > * This application does not use private networking. 
 >
@@ -146,7 +146,7 @@
 
 
 * [x] **[Required]** Manage transaction, partial, and intermittent failures
-* [ ] **[Required]** Manage duplicate and unwanted events
+* [x] **[Required]** Manage duplicate and unwanted events
 * [ ] **[Good]** Orchestrate long-running transactions
 * [x] **[Best]** Consider scaling patterns at burst rates
 
@@ -157,7 +157,9 @@
 
 > * We use SQS queues and DLQ's to ensure any processing failure results in a notification.
 >
-> * Our example does not deal with duplicate events or files. Any duplicate will overwrite the previous, this could be improved inserting another layer of business logic that first checks the inbound file and renames with a UUID, it could additionally check to see if the file hash has already been processed. 
+> * The Dynamo key and converted S3 object for each analysis is tied to the input object being analyzed. Pushing the same document will result in the same artifact.
+>
+> * Our example does not deal with duplicate files. Any duplicate will overwrite the previous, this could be improved inserting another layer of business logic that first checks the inbound file and renames with a UUID, it could additionally check to see if the file hash has already been processed. 
 > 
 > * The processing time of our transactions is fast and we can handle multiple files in a single invocation. Under heavy load of inbound files the SQS queue handles the work being distributed to lambda up to 1000 concurrent batches. 
 
