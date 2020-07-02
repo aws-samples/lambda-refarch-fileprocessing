@@ -37,7 +37,7 @@
 
 ##### Notes
 
->* Our example utilizes infrastructure as code and includes a simple pipeline that will build and deploy within an individual account and to an individual environment. However the nature of this example means it can be deployed many times it's possible. You can for example deploy a staging pipeline that would watch a development branch and deploy and changes to the Staging application stack. You could also deploy a production pipeline stack that watches the master branch and merges here will trigger a production release.
+>* Our example utilizes infrastructure as code and includes a simple pipeline that will build and deploy within an individual account and to an individual environment. However the nature of this example means it can be deployed multiple times with different configurations. You can for example deploy a staging pipeline that would watch a development branch and deploy and changes to the Staging application stack. You could also deploy a production pipeline stack that watches the master branch and merges here will trigger a production release.
 >
 >* For this example a rollout mechanism would involve adopting either a Blue / Green deployment strategy with you controlling which input bucket a particular user hits . Alternatively for application business logic only changes these could be tested by having a notification invoke an alternate version of a lambda under specific conditions. 
 
@@ -81,7 +81,7 @@
 
 > * We use IAM policy to ensure that resources can only be called by other resources that should be calling them.
 >
-> * All application components will assume a role with only the permissions it requires in order to perform it's function. This will either be only being able to perform a specific action on multiple resources or any action on a particular resource. 
+> * All application components will assume a role with only the permissions it requires in order to perform its function. This will either be only being able to perform a specific action on multiple resources or any action on a particular resource. 
 >
 > * This application does not use private networking. 
 >
