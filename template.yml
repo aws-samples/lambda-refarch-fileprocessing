@@ -46,7 +46,7 @@ Resources:
               StringEquals:
                 aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnEquals:
-                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-input-bucket"
+                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-inputbucket"
       Topics:
         - !Ref NotificationTopic
 
