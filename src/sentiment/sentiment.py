@@ -16,19 +16,21 @@ patch_all()
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
 
+aws_region = os.environ['AWS_REGION']
+
 s_table = os.getenv('SENTIMENT_TABLE')
 s_queue = os.getenv('SENTIMENT_QUEUE')
 
 log_level = os.getenv('LOG_LEVEL')
 
-comprehend_client = boto3.client('comprehend')
+comprehend_client = boto3.client('comprehend', region_name=aws_region)
 
-s3_resource = boto3.resource('s3')
+s3_resource = boto3.resource('s3', region_name=aws_region)
 
-dynamodb_resource = boto3.resource('dynamodb')
+dynamodb_resource = boto3.resource('dynamodb', region_name=aws_region)
 table = dynamodb_resource.Table(s_table)
 
-sqs_client = boto3.client('sqs')
+sqs_client = boto3.client('sqs', region_name=aws_region)
 
 log = logging.getLogger()
 
@@ -145,7 +147,6 @@ def put_sentiment(s3_object, sentiment):
         result = f'Error: {str(e)}'
         log.error(response)
 
-
     xray_recorder.end_subsegment()
     return(result)
 
@@ -161,70 +162,81 @@ def handler(event, context):
 
         try:
             json_body = json.loads(record['body'])
-            request_params = json_body['detail']['requestParameters']
-            bucket_name = request_params['bucketName']
-            key_name = request_params['key']
 
-            size = check_s3_object_size(bucket_name, key_name)
+            for record in json_body['Records']:
+                bucket_name = record['s3']['bucket']['name']
+                key_name = record['s3']['object']['key']
 
-            if size >= max_object_size:
-                error_message = f'Source S3 object '
-                error_message += f's3://{bucket_name}/{key_name} is larger '
-                error_message += f'than {max_object_size} (max object bytes)'
-                log.error(error_message)
-                raise Exception(error_message)
+                size = check_s3_object_size(bucket_name, key_name)
 
-            if size == 'NaN':
-                exc = f'Could not get size for s3://{bucket_name}/{key_name}'
-                raise Exception(exc)
+                if size >= max_object_size:
+                    error_message = f'Source S3 object '
+                    error_message += f's3://{bucket_name}/{key_name} '
+                    error_message += f'is larger '
+                    error_message += f'than {max_object_size} '
+                    error_message += f'(max object bytes)'
+                    log.error(error_message)
+                    raise Exception(error_message)
 
-            local_file = os.path.join(tmpdir, key_name)
+                if size == 'NaN':
+                    exc = f'Could not get size for '
+                    exc += f's3://{bucket_name}/{key_name}'
+                    raise Exception(exc)
 
-            download_status = get_s3_object(bucket_name, key_name, local_file)
+                local_file = os.path.join(tmpdir, key_name)
 
-            if download_status == 'ok':
-                log.info(f'Download to {local_file} for sentiment analysis')
-            else:
-                log.error(f'Download failure to {local_file}')
-                raise Exception(f'Download failure to {local_file}')
+                download_status = get_s3_object(bucket_name,
+                                                key_name,
+                                                local_file)
 
-            md_contents = open(local_file, 'r').read()
+                if download_status == 'ok':
+                    success_message = f'Download to {local_file} '
+                    success_message += f'for sentiment analysis'
+                    log.info(success_message)
+                else:
+                    log.error(f'Download failure to {local_file}')
+                    raise Exception(f'Download failure to {local_file}')
 
-            sentiment = comprehend_client.detect_sentiment(
-                Text=md_contents,
-                LanguageCode='en'
-            )
+                md_contents = open(local_file, 'r').read()
 
-            overall_sentiment = sentiment['Sentiment']
-            sentiment_score = sentiment['SentimentScore']
+                sentiment = comprehend_client.detect_sentiment(
+                    Text=md_contents,
+                    LanguageCode='en'
+                )
 
-            sentiment_message = f'{overall_sentiment} ({sentiment_score})'
-            log.info(sentiment_message)
+                overall_sentiment = sentiment['Sentiment']
+                sentiment_score = sentiment['SentimentScore']
 
-            source_s3_object = f's3://{bucket_name}/{key_name}'
+                sentiment_message = f'{overall_sentiment} ({sentiment_score})'
+                log.info(sentiment_message)
 
-            put_sentiment_result = put_sentiment(source_s3_object, sentiment)
+                source_s3_object = f's3://{bucket_name}/{key_name}'
 
-            if put_sentiment_result == 'ok':
-                '''If function could put the sentiment to the DDB table then
-                remove message from SQS queue.'''
-                try:
-                    sqs_client.delete_message(
-                        QueueUrl=s_queue,
-                        ReceiptHandle=sqs_receipt_handle
-                    )
-                except Exception as e:
-                    err_msg = f'Could not remove message from queue: {str(e)}'
-                    log.error(err_msg)
-                    raise Exception(err_msg)
+                put_sentiment_result = put_sentiment(source_s3_object,
+                                                     sentiment)
 
-                sentiment_db_msg = f'Put sentiment to {s_table}'
-                log.info(sentiment_db_msg)
-            else:
-                db_put_error_msg = f'Could not put sentiment to {s_table}: '
-                db_put_error_msg += f'{put_sentiment_result}'
-                log.error(db_put_error_msg)
-                raise Exception(db_put_error_msg)
+                if put_sentiment_result == 'ok':
+                    '''If function could put the sentiment to the DDB table then
+                    remove message from SQS queue.'''
+                    try:
+                        sqs_client.delete_message(
+                            QueueUrl=s_queue,
+                            ReceiptHandle=sqs_receipt_handle
+                        )
+                    except Exception as e:
+                        err_msg = f'Could not remove message '
+                        err_msg += f'from queue: {str(e)}'
+                        log.error(err_msg)
+                        raise Exception(err_msg)
+
+                    sentiment_db_msg = f'Put sentiment to {s_table}'
+                    log.info(sentiment_db_msg)
+                else:
+                    db_put_error_msg = f'Could not put sentiment '
+                    db_put_error_msg += f'to {s_table}: '
+                    db_put_error_msg += f'{put_sentiment_result}'
+                    log.error(db_put_error_msg)
+                    raise Exception(db_put_error_msg)
         except Exception as e:
             log.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')

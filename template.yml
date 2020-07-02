@@ -25,112 +25,89 @@ Parameters:
 Resources:
   InputBucket:
     Type: AWS::S3::Bucket
-  
-  CloudTrailBucket:
-    Type: AWS::S3::Bucket
-  
-  InputBucketTrail:
-    DependsOn: CloudTrailBucketPolicy
-    Type: AWS::CloudTrail::Trail
-    Properties: 
-      S3BucketName: !Ref CloudTrailBucket
-      EventSelectors: 
-        - DataResources:
-          - Type: 'AWS::S3::Object'
-            Values:
-              - !Sub |-
-                arn:aws:s3:::${InputBucket}/
-          IncludeManagementEvents: false
-          ReadWriteType: WriteOnly
-      IsLogging: true
-  
-  CloudTrailBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    DependsOn: CloudTrailBucket
-    Properties: 
-      Bucket: !Ref CloudTrailBucket
-      PolicyDocument: 
-          Version: "2012-10-17"
-          Statement: 
-            - 
-              Sid: "AWSCloudTrailAclCheck"
-              Effect: "Allow"
-              Principal: 
-                Service: "cloudtrail.amazonaws.com"
-              Action: "s3:GetBucketAcl"
-              Resource: !Sub |-
-                  arn:aws:s3:::${CloudTrailBucket}
-            - 
-              Sid: "AWSCloudTrailWrite"
-              Effect: "Allow"
-              Principal: 
-                Service: "cloudtrail.amazonaws.com"
-              Action: "s3:PutObject"
-              Resource:
-                !Sub |-
-                  arn:aws:s3:::${CloudTrailBucket}/AWSLogs/${AWS::AccountId}/*
-              Condition: 
-                StringEquals:
-                  s3:x-amz-acl: "bucket-owner-full-control"
-
-  FileProcessingQueuePolicy:
-    # https://forums.aws.amazon.com/message.jspa?messageID=743094
-    Type: AWS::SQS::QueuePolicy
     Properties:
-      Queues:
-        - !Ref ConversionQueue
-        - !Ref SentimentQueue
+      BucketName: !Sub ${AWS::StackName}-${AWS::AccountId}-input-bucket
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+  
+  NotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - 
-            Effect: Allow
+          - Effect: Allow
             Principal:
-              AWS: '*'
-            Action:
-              - sqs:SendMessage
-            Resource: !GetAtt ConversionQueue.Arn
+              Service: "s3.amazonaws.com"
+            Action: SNS:Publish
+            Resource: !Ref NotificationTopic
             Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub ${AWS::AccountId}
               ArnEquals:
-                aws:SourceArn: !GetAtt FileProcessingRule.Arn
-          - 
-            Effect: Allow
-            Principal:
-              AWS: '*'
-            Action:
-              - sqs:SendMessage
-            Resource: !GetAtt SentimentQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt FileProcessingRule.Arn
+                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-input-bucket"
+      Topics:
+        - !Ref NotificationTopic
 
-  FileProcessingRule:
-    Type: AWS::Events::Rule
-    DependsOn:
-      - ConversionQueue
-      - SentimentQueue
+  NotificationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
     Properties:
-      Description: Rule to capture S3 PutObject events
-      EventPattern:
-        source:
-          - aws.s3
-        detail-type:
-          - AWS API Call via CloudTrail
-        detail:
-          eventSource:
-            - s3.amazonaws.com
-          eventName:
-            - PutObject
-          requestParameters:
-            bucketName:
-              - !Ref InputBucket
-      State: 'ENABLED'
-      Targets:
-        - Arn: !GetAtt ConversionQueue.Arn
-          Id: Convert
-        - Arn: !GetAtt SentimentQueue.Arn
-          Id: Sentiment
-  
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn: !Ref NotificationTopic
+      Queues:
+        - !Ref ConversionQueue
+        - !Ref SentimentQueue
+
+  ApplyS3NotificationLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: notification.handler
+      Runtime: python3.6
+      CodeUri: ./src/notification/
+      Timeout: 60
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: sqs:PurgeQueue
+              Resource:
+                - !GetAtt ConversionQueue.Arn
+                - !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutBucketNotification
+              Resource:
+                - !Sub 'arn:aws:s3:::${InputBucket}'
+                - !Sub 'arn:aws:s3:::${InputBucket}/*'
+
+  ApplyInputBucketTrigger:
+    Type: Custom::ApplyS3Notification
+    Properties:
+      ServiceToken: !GetAtt ApplyS3NotificationLambdaFunction.Arn
+      S3Bucket: !Ref InputBucket
+      SnsArn: !Ref NotificationTopic
+      NotificationId: S3ObjectCreatedEvent
+      SqsUrls: [ !Ref ConversionQueue, !Ref SentimentQueue ]
+
+  ConversionSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt ConversionQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
   ConversionQueue:
     Type: AWS::SQS::Queue
     DependsOn: ConversionDlq
@@ -146,7 +123,7 @@ Resources:
       VisibilityTimeout: 300
           
   ConversionFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     DependsOn: ConversionTargetBucket
     Properties:
       Description: Convert and store HTML representation of uploaded S3 objects
@@ -167,12 +144,7 @@ Resources:
                 - s3:GetObject
                 - s3:GetObjectAcl
                 - s3:GetObjectVersion
-              Resource:
-                Fn::Join:
-                  - ''
-                  - - 'arn:aws:s3:::'
-                    - Ref: InputBucket
-                    - '/*'
+              Resource: !Sub 'arn:aws:s3:::${InputBucket}/*'
             - Effect: Allow
               Action:
                 - s3:ListBucket
@@ -212,6 +184,14 @@ Resources:
   ConversionTargetBucket:
     Type: AWS::S3::Bucket
 
+  SentimentSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt SentimentQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
   SentimentQueue:
     Type: AWS::SQS::Queue
     DependsOn: SentimentDlq
@@ -227,7 +207,7 @@ Resources:
       VisibilityTimeout: 300
 
   SentimentFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     Properties:
       Description: Detect and store sentiment from uploaded S3 objects
       Handler: sentiment.handler
@@ -347,7 +327,7 @@ Resources:
         - Name: QueueName
           Value: !GetAtt SentimentDlq.QueueName
 
-  ConverstionQueueAlarm:
+  ConversionQueueAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmDescription: Conversion queue has too many messages
@@ -569,7 +549,7 @@ Resources:
             },
             {
               "type":"metric",
-              "x":0,
+              "x":12,
               "y":0,
               "width":12,
               "height":6,
@@ -588,25 +568,64 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":6,
               "width":12,
               "height":6,
               "properties":{
                 "metrics":[
-                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}", { "id": "m1", "visible": false } ],
-                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
-                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${ConversionFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
                 ],
                 "period":60,
-                "stat":"Sum",
+                "stat":"Maximum",
                 "region": "${AWS::Region}",
-                "title":"Conversion Function Throttle Rate"
+                "title":"Conversion Function Concurrent Executions"
               }
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":6,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${ConversionFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                  [ "...", { "label": "Duration (Max)" } ],
+                  [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Conversion Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Conversion Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":18,
               "width":12,
               "height":6,
               "properties":{
@@ -627,7 +646,7 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":24,
               "width":12,
               "height":6,
               "properties":{
@@ -647,8 +666,8 @@ Resources:
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":24,
               "width":12,
               "height":6,
               "properties":{
@@ -666,25 +685,64 @@ Resources:
             {
               "type":"metric",
               "x":0,
-              "y":0,
+              "y":36,
               "width":12,
               "height":6,
               "properties":{
                 "metrics":[
-                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}", { "id": "m1", "visible": false } ],
-                  [ { "expression": "100*(m1/m2)", "label": "Throttle Rate", "id": "e1", "region": "${AWS::Region}" } ],
-                  [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${SentimentFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
                 ],
                 "period":60,
-                "stat":"Sum",
+                "stat":"Maximum",
                 "region": "${AWS::Region}",
-                "title":"Sentiment Function Throttle Rate"
+                "title":"Sentiment Function Concurrent Executions"
               }
             },
             {
               "type":"metric",
-              "x":0,
-              "y":0,
+              "x":12,
+              "y":36,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${SentimentFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                    [ "...", { "label": "Duration (Max)" } ],
+                    [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Sentiment Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 42,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Sentiment Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":42,
               "width":12,
               "height":6,
               "properties":{
@@ -700,6 +758,50 @@ Resources:
                 "stat":"Sum",
                 "region": "${AWS::Region}",
                 "title":"Sentiment DLQ Length"
+              }
+            },
+            {
+              "type": "text",
+              "x": 0,
+              "y": 48,
+              "width": 24,
+              "height": 1,
+              "properties": {
+                  "markdown": "\n# Alarms"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "ConversionDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${ConversionDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "SentimentDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${SentimentDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
               }
             }
           ]
