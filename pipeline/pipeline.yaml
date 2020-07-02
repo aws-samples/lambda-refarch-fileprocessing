@@ -308,7 +308,7 @@ Resources:
             - s3:GetObject
             - s3:DeleteObject
           Resource:
-            - !Sub "arn:aws:s3:::${AppName}-${AWS::AccountId}-inputbucket/*"
+            - !Sub "arn:aws:s3:::${AppName}-${AWS::AccountId}-input-bucket/*"
             - !Sub "arn:aws:s3:::${AppName}-conversiontargetbucket-*/*"
         - Effect: Allow
           Action: 
@@ -346,7 +346,7 @@ Resources:
             - s3:DeleteBucketPolicy
             - s3:PutBucketPolicy
           Resource: 
-            - !Sub "arn:aws:s3:::*-*-inputbucket"
+            - !Sub "arn:aws:s3:::*-*-input-bucket"
             - !Sub "arn:aws:s3:::${AppName}-conversiontargetbucket-*"
           Effect: Allow
         
