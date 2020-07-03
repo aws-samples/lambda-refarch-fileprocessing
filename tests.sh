@@ -73,13 +73,28 @@ function clean {
 
 ## Get Stack Resources
 
-BUCKET_IN=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'InputBucket' --query "StackResourceDetail.PhysicalResourceId" --output text)
-BUCKET_OUT=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'ConversionTargetBucket' --query "StackResourceDetail.PhysicalResourceId" --output text)
-DYNAMO_TABLE=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id 'SentimentTable' --query "StackResourceDetail.PhysicalResourceId" --output text)
+BUCKET_IN=$(aws cloudformation describe-stack-resource \
+--stack-name "$STACK" --logical-resource-id 'InputBucket' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text)
 
-echo "Input Bucket: $BUCKET_IN"
-echo "Ouput Bucket: $BUCKET_OUT"
-echo "Dynamo Table: $DYNAMO_TABLE"
+
+BUCKET_OUT=$(aws cloudformation describe-stack-resource \
+--stack-name "$STACK" \
+--logical-resource-id 'ConversionTargetBucket' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text)
+
+
+DYNAMO_TABLE=$(aws cloudformation describe-stack-resource \
+--stack-name "$STACK" --logical-resource-id 'SentimentTable' \
+--query "StackResourceDetail.PhysicalResourceId" \
+--output text)
+
+
+echo "Found Input Bucket: $BUCKET_IN"
+echo "Found Ouput Bucket: $BUCKET_OUT"
+echo "Found DynamoDB Table: $DYNAMO_TABLE"
 
 ## Get Samples
 
@@ -130,8 +145,6 @@ done
 # Check for files in output bucket
 
 for f in "${TEST_FILES[@]}"; do
-
-    # We know our output files will have a html extention so we need to substitute md for html when working with the output.
 
     FILE_NAME=$(cut -d "/" -f2- <<< "$f")
 
