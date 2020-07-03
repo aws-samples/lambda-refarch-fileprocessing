@@ -146,6 +146,11 @@ The pipeline end to end test script can be manually executed, you will need to e
 ./tests.sh lambda-file-refarch
 ```
 
+Whilst the script is executing you will see all the stages output to the command line. The samples are uploaded, 
+the script will then wait for files to appear in the output bucket before checking they have all been processed and the
+matching html file exists in the output bucket. It will also check that the sentiment for each of the files has been 
+recorded in the DynamoDB table. Once complete  the script will remove all the files created and the entries from the DynamoDB table.
+
 ### Extra credit testing
 
 Try uploading (or adding to ./tests if you are using the script) an oversized (>100MB) or invalid file type to the input bucket.
