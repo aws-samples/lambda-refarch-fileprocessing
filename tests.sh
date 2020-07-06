@@ -127,7 +127,7 @@ while [ $SECONDS -lt $END ]
 
 do
 
-    FILE_NAME=$(cut -d "/" -f2- <<< ${TEST_FILES[*]: -1}})
+    FILE_NAME=$(cut -d "/" -f2- <<< ${TEST_FILES[*]: -1})
 
     EXISTS=$(aws s3api head-object --bucket $BUCKET_OUT --key ${FILE_NAME/md/html}) || NOT_EXIST=true
 
