@@ -16,28 +16,23 @@ In this architecture, individual files are processed as they arrive. To achive t
 
 ### Conversion Workflow
 
-We target a SQS queue for this workflow. Sending the JSON event to SQS first rather than directly to Lambda allows for more control of Lambda invocations and better error handling.
+Our function will take Markdown files stored in our **InputBucket**, convert them to HTML, and store them in our **OutputBucket**.  The **ConversionQueue** SQS queue captures the S3 Event JSON payload, allowing for more control of our **ConversionFunction** and better error handling.  Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
 
-The Lambda service polls our queue on our behalf. When messages are available they will be delivered to our function. Lambda can automatically scale with the number of messages on the queue. Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
-
-If our Conversion Lambda function cannot remove the messages from the Conversion queue, they are sent to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Conversion DLQ.
-
-Our function business logic uses this information to retrieve the file from S3 using the [Python AWS SDK (boto3)](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html?id=docs_gateway) and store it in a temporary location within the function execution environment. The path of the file is then passed to a python function which reads the file contents and converts it to HTML using the Python [Markdown Library](https://pypi.org/project/Markdown/). We then generate the filename for the new HTML file and write it to our temporary location. Finally we upload the new HTML file to an output S3 bucket.  If our function execution results in an error, we will 
+If our **ConversionFunction** cannot remove the messages from the **ConversionQueue**, they are sent to **ConversionDlq**, a dead-letter queue (DLQ), for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the **ConversionDlq**.
 
 ### Sentiment Analysis Workflow
 
-We are using AWS' AI/ML service [Amazon Comprehend](https://aws.amazon.com/comprehend/) which is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
+Our function will take Markdown files stored in our **InputBucket**, detect the overall sentiment for each file, and store the result in our **SentimentTable**.
 
-The Sentiment workflow uses the same SQS-to-Lambda Function pattern as the Coversion workflow. Our function downloads the markdown file, extracts the contents, and sends it to the Comprehend Sentiment Analysis API. This returns a Sentiment and a confidence score which describes the level of confidence that Amazon Comprehend has in the accuracy of its detection of sentiments.
+We are using [Amazon Comprehend](https://aws.amazon.com/comprehend/) to detect overall interview sentiment.  Amazon Comprehend is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
 
-Once we have our sentiment we persist the result to our [DynamoDB](https://aws.amazon.com/dynamodb/) table.
+The Sentiment workflow uses the same SQS-to-Lambda Function pattern as the Coversion workflow.
 
-If our Sentiment Lambda function cannot remove the messages from the Sentiment SQS queue, they are sent to a dead-letter queue (DLQ) for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the Sentiment DLQ.
-
+If our **SentimentFunction** cannot remove the messages from the **SentimentQueue**, they are sent to **SentimentDlq**, a dead-letter queue (DLQ), for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the **SentimentDlq**.
 
 ## Building and Deploying the Application with the AWS Serverless Application Model (AWS SAM)
 
-This application is deployed using the AWS Serverless Application Model (AWS SAM).  AWS SAM is an open-source framework that enables you to build serverless applications on AWS.  It provides you with a template specification to define your serverless application, and a command line interface (CLI) tool.
+This application is deployed using the [AWS Serverless Application Model (AWS SAM)](https://aws.amazon.com/serverless/sam/).  AWS SAM is an open-source framework that enables you to build serverless applications on AWS.  It provides you with a template specification to define your serverless application, and a command line interface (CLI) tool.
 
 ### Pre-requisites
 
@@ -46,6 +41,20 @@ This application is deployed using the AWS Serverless Application Model (AWS SAM
 * [AWS SAM CLI (0.41.0 or higher)](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
 
 * [Docker](https://docs.docker.com/install/)
+
+### Clone the Repository
+
+#### Clone with SSH
+
+```bash
+git clone git@github.com:mcnamarabrian/lambda-refarch-fileprocessing.git
+```
+
+#### Clone with HTTPS
+
+```bash
+git clone https://github.com/mcnamarabrian/lambda-refarch-fileprocessing.git
+```
 
 ### Build
 
@@ -59,54 +68,30 @@ sam build --use-container
 
 Be sure to use v0.41.0 of the AWS SAM CLI or newer.  Failure to use the proper version of the AWS SAM CLI will result in a `InvalidDocumentException` exception.  The `EventInvokeConfig` property is not recognized in earlier versions of the AWS SAM CLI.  To confirm your version of AWS SAM, run the command `sam --version`.
 
-### Package
-
-Next, run *sam package*.  This command takes your Lambda handler source code and any third-party dependencies, zips everything, and uploads the zip file to your Amazon S3 bucket. That bucket and file location are then noted in the packaged-template.yaml file. You use the generated packaged-template.yaml file to deploy the application in the next step. 
-
-```bash
-sam package \
-    --output-template-file packaged-template.yml \
-    --s3-bucket bucketname
-```
-
-**Note**
-
-For *bucketname* in this command, you need an Amazon S3 bucket that the sam package command can use to store the deployment package. The deployment package is used when you deploy your application in a later step. If you need to create a bucket for this purpose, run the following command to create an Amazon S3 bucket: 
-
-```bash
-aws s3 mb s3://bucketname --region region  # Example regions: us-east-1, ap-east-1, eu-central-1, sa-east-1
-```
-
 ### Deploy
 
-This command deploys your application to the AWS Cloud. It's important that this command explicitly includes both of the following:
-
-  * The AWS Region to deploy to. This Region must match the Region of the Amazon S3 source bucket.
-
-  * The CAPABILITY_IAM parameter, because creating new Lambda functions involves creating new IAM roles.
+For the first deployment, please run the following command and save the generated configuration file *samconfig.toml*.  Please use **lambda-file-refarch** for the stack name.  
 
 ```bash
-sam deploy \
-    --template-file packaged-template.yml \
-    --stack-name lambda-file-refarch \
-    --region region \
-    --tags Project=lambda-refarch-fileprocessing \
-    --parameter-overrides AlarmRecipientEmailAddress=<your email address> \
-    --capabilities CAPABILITY_IAM
+sam deploy --guided
 ```
 
-You will receive an email asking you to confirm subscription to the `lambda-file-refarch-AlarmTopic` SNS topic that will receive alerts should either the `ConversionDlq` SQS queue or `SentimentDlq` SQS queue receive messages.
+You will be prompted to enter data for *ConversionLogLevel* and *SentimentLogLevel*.  The default value for each is *INFO* but you can also enter *DEBUG*.  You will also be prompted for *AlarmRecipientEmailAddress*.
 
+Subsequent deployments can use the simplified `sam deploy`.  The command will use the generated configuration file *samconfig.toml*.
+
+You will receive an email asking you to confirm subscription to the `lambda-file-refarch-AlarmTopic` SNS topic that will receive alerts should either the `ConversionDlq` SQS queue or `SentimentDlq` SQS queue receive messages.
 
 ## Testing the Example
 
 After you have created the stack using the CloudFormation template, you can manually test the system by uploading a Markdown file to the InputBucket that was created in the stack.
+
 Alternatively you test it by utilising the pipeline tests.sh script, however the test script removes the resources it creates, so if you wish to explore the solution and see the output files
 and DynamoDB tables manually uploading is the better option.
 
-### Manually testing:
+### Manually testing
 
- You can use the any of the sample-xx.md files in the repository /tests directory as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
+ You can use the any of the sample-xx.md files in the repository /**tests** directory as example files. After the files have been uploaded, you can see the resulting HTML file in the output bucket of your stack. You can also view the CloudWatch logs for each of the functions in order to see the details of their execution.
 
 You can use the following commands to copy a sample file from the provided S3 bucket into the input bucket of your stack.
 
@@ -143,25 +128,36 @@ The pipeline end to end test script can be manually executed, you will need to e
 * Reading and deleting entries from the DynamoDB table
 
 ```bash
-./tests.sh lambda-file-refarch
+bash ./tests.sh lambda-file-refarch
 ```
 
-Whilst the script is executing you will see all the stages output to the command line. The samples are uploaded, 
-the script will then wait for files to appear in the output bucket before checking they have all been processed and the
-matching html file exists in the output bucket. It will also check that the sentiment for each of the files has been 
-recorded in the DynamoDB table. Once complete  the script will remove all the files created and the entries from the DynamoDB table.
+While the script is executing you will see all the stages output to the command line. The samples are uploaded to the **InputBucket**, the script will then wait for files to appear in the **OutputBucket** before checking they have all been processed and the matching html file exists in the **OutputBucket**. It will also check that the sentiment for each of the files has been recorded in the **SentimentTable**. Once complete  the script will remove all the files created and the entries from the **SentimentTable**.
 
 ### Extra credit testing
 
 Try uploading (or adding to ./tests if you are using the script) an oversized (>100MB) or invalid file type to the input bucket.
 You can check in X-ray to explore how you can trace these kind of errors within the solution.
 
+* Linux command
+
 ```bash
-    fallocate -l 110M ./tests/sample-oversize.md
+fallocate -l 110M ./tests/sample-oversize.md
+```
+
+* Mac OS X command
+
+```bash
+mkfile 110m ./tests/sample-oversize.md
 ```
 
 ![X-Ray Error Tracing - Real-time File Processing](img/lambda-refarch-fileprocessing-x-ray-error-trace.png)
 
+
+## Viewing the CloudWatch dashboard
+
+A dashboard is created as a part of the stack creation process.  Metrics are published for the conversion and sentiment analysis processes.  In addition, the alarms and alarm states are published.
+
+![CloudWatch Dashboard - Real-time File Processing](img/lambda-refarch-fileprocessing-dashboard.png)
 
 ## Cleaning Up the Example Resources
 
@@ -204,10 +200,11 @@ done
 ## SAM Template Resources
 
 ### Resources
+
 [The provided template](https://s3.amazonaws.com/awslambda-reference-architectures/file-processing/packaged-template.yml)
 creates the following resources:
 
-- **InputBucket** - An S3 bucket that holds the raw Markdown files. Uploading a file to this bucket will trigger processing functions.
+- **InputBucket** - A S3 bucket that holds the raw Markdown files. Uploading a file to this bucket will trigger processing functions.
 
 - **NotificationTopic** - A SNS topic that receives S3 events from the **InputBucket**.
 

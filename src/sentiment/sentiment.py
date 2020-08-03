@@ -5,13 +5,10 @@ import os
 import sys
 import tempfile
 
-import aws_lambda_logging
-from aws_xray_sdk.core import xray_recorder
-from aws_xray_sdk.core import patch_all
+from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Tracer
 import boto3
 import botocore
-
-patch_all()
 
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
@@ -32,9 +29,11 @@ table = dynamodb_resource.Table(s_table)
 
 sqs_client = boto3.client('sqs', region_name=aws_region)
 
-log = logging.getLogger()
+logger = Logger()
+tracer = Tracer()
 
 
+@tracer.capture_method
 def check_s3_object_size(bucket, key_name):
     """Take in a bucket and key and return the number of bytes
 
@@ -52,22 +51,20 @@ def check_s3_object_size(bucket, key_name):
         Size of key_name in bucket
     """
 
-    xray_recorder.begin_subsegment('## get_object_size')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+    tracer.put_metadata('object', f's3://{bucket}/{key_name}')
 
     try:
         size = s3_resource.Object(bucket, key_name).content_length
-        subsegment.put_metadata('object_size', size)
+        tracer.put_metadata('object_size', size)
     except Exception as e:
-        log.error(f'Error: {str(e)}')
+        logger.error(f'Error: {str(e)}')
         size = 'NaN'
-        subsegment.put_metadata('object_size', size)
+        tracer.put_metadata('object_size', size)
 
-    xray_recorder.end_subsegment()
     return(size)
 
 
+@tracer.capture_method
 def get_s3_object(bucket, key_name, local_file):
     """Download object in S3 to local file
 
@@ -87,25 +84,23 @@ def get_s3_object(bucket, key_name, local_file):
         Result of operation ('ok' or exception)
     """
 
-    xray_recorder.begin_subsegment('## get_object_to_analyze')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+    tracer.put_metadata('object', f's3://{bucket}/{key_name}')
 
     try:
         s3_resource.Bucket(bucket).download_file(key_name, local_file)
         result = 'ok'
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
+        tracer.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
     except botocore.exceptions.ClientError as e:
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
+        tracer.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
         if e.response['Error']['Code'] == '404':
             result = f'Error: s3://{bucket}/{key_name} does not exist'
         else:
             result = f'Error: {str(e)}'
 
-    xray_recorder.end_subsegment()
     return(result)
 
 
+@tracer.capture_method
 def put_sentiment(s3_object, sentiment):
     """Put the sentiment of a object to DynamoDB
 
@@ -123,9 +118,6 @@ def put_sentiment(s3_object, sentiment):
         Result of operation ('ok' or exception)
     """
 
-    xray_recorder.begin_subsegment('## put_sentiment_to_db')
-    subsegment = xray_recorder.current_subsegment()
-
     try:
         response = table.put_item(
             Item={
@@ -140,21 +132,19 @@ def put_sentiment(s3_object, sentiment):
         )
 
         result = 'ok'
-        subsegment.put_annotation('PUT_SENTIMENT_TO_DB', 'SUCCESS')
+        tracer.put_annotation('PUT_SENTIMENT_TO_DB', 'SUCCESS')
     except Exception as e:
         result = str(e)
-        subsegment.put_annotation('PUT_SENTIMENT_TO_DB', 'FAILURE')
+        tracer.put_annotation('PUT_SENTIMENT_TO_DB', 'FAILURE')
         result = f'Error: {str(e)}'
-        log.error(response)
+        logger.error(response)
 
-    xray_recorder.end_subsegment()
     return(result)
 
 
+@tracer.capture_method
+@logger.inject_lambda_context
 def handler(event, context):
-    aws_lambda_logging.setup(level=log_level,
-                             aws_request_id=context.aws_request_id)
-
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
 
@@ -175,7 +165,7 @@ def handler(event, context):
                     error_message += f'is larger '
                     error_message += f'than {max_object_size} '
                     error_message += f'(max object bytes)'
-                    log.error(error_message)
+                    logger.error(error_message)
                     raise Exception(error_message)
 
                 if size == 'NaN':
@@ -192,9 +182,9 @@ def handler(event, context):
                 if download_status == 'ok':
                     success_message = f'Download to {local_file} '
                     success_message += f'for sentiment analysis'
-                    log.info(success_message)
+                    logger.info(success_message)
                 else:
-                    log.error(f'Download failure to {local_file}')
+                    logger.error(f'Download failure to {local_file}')
                     raise Exception(f'Download failure to {local_file}')
 
                 md_contents = open(local_file, 'r').read()
@@ -208,7 +198,7 @@ def handler(event, context):
                 sentiment_score = sentiment['SentimentScore']
 
                 sentiment_message = f'{overall_sentiment} ({sentiment_score})'
-                log.info(sentiment_message)
+                logger.info(sentiment_message)
 
                 source_s3_object = f's3://{bucket_name}/{key_name}'
 
@@ -226,33 +216,33 @@ def handler(event, context):
                     except Exception as e:
                         err_msg = f'Could not remove message '
                         err_msg += f'from queue: {str(e)}'
-                        log.error(err_msg)
+                        logger.error(err_msg)
                         raise Exception(err_msg)
 
                     sentiment_db_msg = f'Put sentiment to {s_table}'
-                    log.info(sentiment_db_msg)
+                    logger.info(sentiment_db_msg)
                 else:
                     db_put_error_msg = f'Could not put sentiment '
                     db_put_error_msg += f'to {s_table}: '
                     db_put_error_msg += f'{put_sentiment_result}'
-                    log.error(db_put_error_msg)
+                    logger.error(db_put_error_msg)
                     raise Exception(db_put_error_msg)
         except Exception as e:
-            log.error(f'Could not get sentiment: {str(e)}')
+            logger.error(f'Could not get sentiment: {str(e)}')
             raise Exception(f'Could not get sentiment: {str(e)}')
         finally:
             filesToRemove = os.listdir(tmpdir)
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                log.debug(f'Removing File: {file_path}')
+                logger.debug(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
-                    log.error(f'Could not delete file {file_path}: {str(e)}')
+                    logger.error(f'Could not delete file {file_path}: {str(e)}')
 
-            log.debug(f'Removing Folder: {tmpdir}')
+            logger.debug(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
     return('ok')
