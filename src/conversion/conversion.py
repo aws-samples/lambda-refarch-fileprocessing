@@ -3,15 +3,12 @@ import logging
 import os
 import sys
 
-import aws_lambda_logging
-from aws_xray_sdk.core import xray_recorder
-from aws_xray_sdk.core import patch_all
+from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Tracer
 import boto3
 import botocore
 import markdown
 import tempfile
-
-patch_all()
 
 
 max_object_size = 104857600  # 100MB = 104857600 bytes
@@ -28,9 +25,11 @@ s3_resource = boto3.resource('s3', region_name=aws_region)
 
 sqs_client = boto3.client('sqs', region_name=aws_region)
 
-log = logging.getLogger()
+logger = Logger()
+tracer = Tracer()
 
 
+@tracer.capture_method
 def check_s3_object_size(bucket, key_name):
     """Take in a bucket and key and return the number of bytes
 
@@ -48,22 +47,20 @@ def check_s3_object_size(bucket, key_name):
         Size of key_name in bucket
     """
 
-    xray_recorder.begin_subsegment('## get_object_size')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+    tracer.put_metadata('object', f's3://{bucket}/{key_name}')
 
     try:
         size = s3_resource.Object(bucket, key_name).content_length
-        subsegment.put_metadata('object_size', size)
+        tracer.put_metadata('object_size', size)
     except Exception as e:
-        log.error(f'Error: {str(e)}')
+        logger.error(f'Error: {str(e)}')
         size = 'NaN'
-        subsegment.put_metadata('object_size', size)
+        tracer.put_metadata('object_size', size)
 
-    xray_recorder.end_subsegment()
     return(size)
 
 
+@tracer.capture_method
 def get_s3_object(bucket, key_name, local_file):
     """Download object in S3 to local file
 
@@ -83,25 +80,23 @@ def get_s3_object(bucket, key_name, local_file):
         Result of operation ('ok' or exception)
     """
 
-    xray_recorder.begin_subsegment('## get_object_to_convert')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('object', f's3://{bucket}/{key_name}')
+    tracer.put_metadata('object', f's3://{bucket}/{key_name}')
 
     try:
         s3_resource.Bucket(bucket).download_file(key_name, local_file)
         result = 'ok'
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
+        tracer.put_annotation('OBJECT_DOWNLOAD', 'SUCCESS')
     except botocore.exceptions.ClientError as e:
-        subsegment.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
+        tracer.put_annotation('OBJECT_DOWNLOAD', 'FAILURE')
         if e.response['Error']['Code'] == '404':
             result = f'Error: s3://{bucket}/{key_name} does not exist'
         else:
             result = f'Error: {str(e)}'
 
-    xray_recorder.end_subsegment()
     return(result)
 
 
+@tracer.capture_method
 def convert_to_html(file):
     """Convert Markdown in file to HTML
 
@@ -116,24 +111,21 @@ def convert_to_html(file):
         Resulting HTML5
     """
 
-    xray_recorder.begin_subsegment('## convert_to_html')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('file', file)
+    tracer.put_metadata('file', file)
 
     try:
         file_open = open(file, 'r')
         file_string = file_open.read()
-        subsegment.put_annotation('MARKDOWN_CONVERSION', 'SUCCESS')
-        xray_recorder.end_subsegment()
+        tracer.put_annotation('MARKDOWN_CONVERSION', 'SUCCESS')
         file_open.close()
         return(markdown.markdown(file_string))
     except Exception as e:
-        log.error(f'Could not open or read {file}: {str(e)}')
-        subsegment.put_annotation('MARKDOWN_CONVERSION', 'FAILURE')
-        xray_recorder.end_subsegment()
+        logger.error(f'Could not open or read {file}: {str(e)}')
+        tracer.put_annotation('MARKDOWN_CONVERSION', 'FAILURE')
         raise
 
 
+@tracer.capture_method
 def upload_html(bucket, key, source_file):
     """Upload local file to S3 bucket
 
@@ -154,27 +146,23 @@ def upload_html(bucket, key, source_file):
         Result of operation ('ok' or exception)
     """
 
-    xray_recorder.begin_subsegment('## upload_html_to_s3')
-    subsegment = xray_recorder.current_subsegment()
-    subsegment.put_metadata('object', f's3://{bucket}/{key}')
+    tracer.put_metadata('object', f's3://{bucket}/{key}')
 
     try:
         s3_resource.Object(bucket, key).upload_file(source_file)
         result = 'ok'
-        subsegment.put_annotation('OBJECT_UPLOAD', 'SUCCESS')
+        tracer.put_annotation('OBJECT_UPLOAD', 'SUCCESS')
     except Exception as e:
-        subsegment.put_annotation('OBJECT_UPLOAD', 'FAILURE')
-        log.error(f'Could not upload {source_file} to {bucket}: {str(e)}')
+        tracer.put_annotation('OBJECT_UPLOAD', 'FAILURE')
+        logger.error(f'Could not upload {source_file} to {bucket}: {str(e)}')
         result = 'fail'
 
-    xray_recorder.end_subsegment()
     return(result)
 
 
+@tracer.capture_method
+@logger.inject_lambda_context
 def handler(event, context):
-    aws_lambda_logging.setup(level=log_level,
-                             aws_request_id=context.aws_request_id)
-
     for record in event['Records']:
         tmpdir = tempfile.mkdtemp()
 
@@ -194,7 +182,7 @@ def handler(event, context):
                     error_message = f's3://{bucket_name}/{key_name} is larger '
                     error_message += f'than {max_object_size} '
                     error_message += f'(max object bytes)'
-                    log.error(error_message)
+                    logger.error(error_message)
                     raise Exception('Source S3 object too large')
 
                 local_file = os.path.join(tmpdir, key_name)
@@ -206,9 +194,9 @@ def handler(event, context):
                 if download_status == 'ok':
                     success_message = f'Success: Download to '
                     success_message += f'{local_file} for conversion'
-                    log.info(success_message)
+                    logger.info(success_message)
                 else:
-                    log.error(f'Fail to put object to {local_file}')
+                    logger.error(f'Fail to put object to {local_file}')
                     raise Exception(f'Fail to put object to {local_file}')
 
                 html = convert_to_html(local_file)
@@ -219,7 +207,7 @@ def handler(event, context):
 
                 with open(local_html_file, 'w') as outfile:
                     outfile.write(html)
-                    log.info(f'''Success: Converted s3://{bucket_name}/{key_name}
+                    logger.info(f'''Success: Converted s3://{bucket_name}/{key_name}
                         to {local_html_file}''')
                 outfile.close()
 
@@ -237,34 +225,34 @@ def handler(event, context):
                             ReceiptHandle=sqs_receipt_handle
                         )
                     except Exception as e:
-                        log.error(f'{str(e)}')
+                        logger.error(f'{str(e)}')
                         raise Exception(str(e))
 
                     dst_s3_object = f's3://{target_bucket}/{html_filename}'
                     success_message = f'Success: Uploaded {local_html_file} '
                     success_message += f'to {dst_s3_object}'
-                    log.info(success_message)
+                    logger.info(success_message)
                 else:
                     error_message = f'Could not upload file to '
                     error_message += f'{dst_s3_object}: {str(e)}'
-                    log.error(error_message)
+                    logger.error(error_message)
                     raise Exception(error_message)
         except Exception as e:
-            log.error(f'Could not convert record: {str(e)}')
+            logger.error(f'Could not convert record: {str(e)}')
             raise Exception(f'Could not convert record: {str(e)}')
         finally:
             filesToRemove = os.listdir(tmpdir)
 
             for f in filesToRemove:
                 file_path = os.path.join(tmpdir, f)
-                log.debug(f'Removing File: {file_path}')
+                logger.debug(f'Removing File: {file_path}')
 
                 try:
                     os.remove(file_path)
                 except OSError as e:
-                    log.error(f'Could not delete file {file_path}: {str(e)}')
+                    logger.error(f'Could not delete file {file_path}: {str(e)}')
 
-            log.debug(f'Removing Folder: {tmpdir}')
+            logger.debug(f'Removing Folder: {tmpdir}')
             os.rmdir(tmpdir)
 
     return('ok')

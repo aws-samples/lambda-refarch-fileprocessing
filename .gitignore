@@ -1,4 +1,4 @@
-packaged-template.yml
+samconfig.toml
 .aws-sam
 .idea
 .history

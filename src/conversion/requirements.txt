@@ -1,4 +1,3 @@
-aws-lambda-logging
-aws-xray-sdk
+aws-lambda-powertools
 boto3
 markdown
