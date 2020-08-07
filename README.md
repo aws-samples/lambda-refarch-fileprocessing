@@ -47,13 +47,13 @@ This application is deployed using the [AWS Serverless Application Model (AWS SA
 #### Clone with SSH
 
 ```bash
-git clone git@github.com:mcnamarabrian/lambda-refarch-fileprocessing.git
+git clone git@github.com:aws-samples/lambda-refarch-fileprocessing.git
 ```
 
 #### Clone with HTTPS
 
 ```bash
-git clone https://github.com/mcnamarabrian/lambda-refarch-fileprocessing.git
+git clone https://github.com/aws-samples/lambda-refarch-fileprocessing.git
 ```
 
 ### Build
