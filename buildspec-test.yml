@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+    commands:
+      - pip install --upgrade awscli
+  build:
+    commands:
+      - chmod +x tests.sh
+      - ./tests.sh $OUTPUT_STACK_NAME
+  post_build:
+    commands:
+      - bash -c "if [ /"$CODEBUILD_BUILD_SUCCEEDING/" == /"0/" ]; then exit 1; fi"
+      - echo Test stage successfully completed on `date`

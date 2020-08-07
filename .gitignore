@@ -1,2 +1,5 @@
-post-sam.yml
-**/node_modules
+samconfig.toml
+.aws-sam
+.idea
+.history
+__pycache__

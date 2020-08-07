@@ -1,0 +1,815 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: SAM template to create file processing architecture represented at https://github.com/aws-samples/lambda-refarch-fileprocessing.
+
+Parameters:
+  ConversionLogLevel:
+    Type: String
+    Default: "INFO"
+    AllowedValues:
+      - "INFO"
+      - "DEBUG"
+
+  SentimentLogLevel:
+    Type: String
+    Default: "INFO"
+    AllowedValues:
+      - "INFO"
+      - "DEBUG"
+
+  AlarmRecipientEmailAddress:
+    Type: String
+    AllowedPattern: '[^\s@]+@[^\s@]+\.[^\s@]+'
+    ConstraintDescription: Enter a valid email address
+
+Resources:
+  InputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${AWS::AccountId}-inputbucket
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+  
+  NotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "s3.amazonaws.com"
+            Action: SNS:Publish
+            Resource: !Ref NotificationTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub ${AWS::AccountId}
+              ArnEquals:
+                aws:SourceArn: !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-inputbucket"
+      Topics:
+        - !Ref NotificationTopic
+
+  NotificationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn: !Ref NotificationTopic
+      Queues:
+        - !Ref ConversionQueue
+        - !Ref SentimentQueue
+
+  ApplyS3NotificationLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: notification.handler
+      Runtime: python3.8
+      CodeUri: ./src/notification/
+      Timeout: 60
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: sqs:PurgeQueue
+              Resource:
+                - !GetAtt ConversionQueue.Arn
+                - !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutBucketNotification
+              Resource:
+                - !Sub 'arn:aws:s3:::${InputBucket}'
+                - !Sub 'arn:aws:s3:::${InputBucket}/*'
+
+  ApplyInputBucketTrigger:
+    Type: Custom::ApplyS3Notification
+    Properties:
+      ServiceToken: !GetAtt ApplyS3NotificationLambdaFunction.Arn
+      S3Bucket: !Ref InputBucket
+      SnsArn: !Ref NotificationTopic
+      NotificationId: S3ObjectCreatedEvent
+      SqsUrls: [ !Ref ConversionQueue, !Ref SentimentQueue ]
+
+  ConversionSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt ConversionQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
+  ConversionQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ConversionDlq
+    Properties:
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConversionDlq.Arn
+        maxReceiveCount: 5
+
+  ConversionDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+          
+  ConversionFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: ConversionTargetBucket
+    Properties:
+      Description: Convert and store HTML representation of uploaded S3 objects
+      Handler: conversion.handler
+      Runtime: python3.8
+      CodeUri: ./src/conversion/
+      MemorySize: 256
+      Timeout: 10
+      Tracing: Active
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              !GetAtt ConversionQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource: !Sub 'arn:aws:s3:::${InputBucket}/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+                - xray:GetSamplingStatisticSummaries
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: ConversionTargetBucket
+                    - '/*'
+      Environment:
+        Variables:
+          TARGET_BUCKET: !Ref ConversionTargetBucket
+          CONVERSION_QUEUE: !Ref ConversionQueue
+          LOG_LEVEL: !Ref ConversionLogLevel
+          POWERTOOLS_SERVICE_NAME: conversion-service
+      Events:
+        ConversionQueueReaderEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ConversionQueue.Arn
+            BatchSize: 10
+
+  ConversionTargetBucket:
+    Type: AWS::S3::Bucket
+
+  SentimentSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref NotificationTopic
+      Endpoint: !GetAtt SentimentQueue.Arn
+      Protocol: sqs
+      RawMessageDelivery: true
+
+  SentimentQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: SentimentDlq
+    Properties:
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SentimentDlq.Arn
+        maxReceiveCount: 5
+
+  SentimentDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+
+  SentimentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Detect and store sentiment from uploaded S3 objects
+      Handler: sentiment.handler
+      Runtime: python3.8
+      CodeUri: ./src/sentiment/
+      MemorySize: 256
+      Timeout: 10
+      Tracing: Active
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              !GetAtt SentimentQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectVersion
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: InputBucket
+                    - '/*'
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt InputBucket.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+                - xray:GetSamplingRules
+                - xray:GetSamplingTargets
+                - xray:GetSamplingStatisticSummaries
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - comprehend:DetectSentiment
+              Resource: '*'
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 
+                - dynamodb:PutItem
+              Resource: !GetAtt SentimentTable.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:DeleteMessage
+              Resource: !GetAtt SentimentQueue.Arn
+      Environment:
+        Variables:
+          SENTIMENT_TABLE: !Ref SentimentTable
+          SENTIMENT_QUEUE: !Ref SentimentQueue
+          LOG_LEVEL: !Ref SentimentLogLevel
+          POWERTOOLS_SERVICE_NAME: sentiment-service
+      Events:
+        SentimentQueueReaderEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SentimentQueue.Arn
+            BatchSize: 10
+  
+  SentimentTable:
+    Type: AWS::Serverless::SimpleTable
+    TableName: ref-arch-filearch-document-sentiment
+    PrimaryKey:
+      Name: 's3_object'
+      Type: String
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlarmRecipientEmailAddress
+
+  ConversionDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if Conversion DLQ has any messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConversionDlq.QueueName
+
+  SentimentDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if Sentiment DLQ has any messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SentimentDlq.QueueName
+
+  ConversionQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Conversion queue has too many messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConversionQueue.QueueName
+
+  SentimentQueueAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Sentiment queue has too many messages
+      AlarmActions:
+        - Ref: AlarmTopic
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SentimentQueue.QueueName
+
+  ConversionFunctionErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High error rate for Conversion Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: ConversionFunctionErrorRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 5.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  SentimentFunctionErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High error rate for Sentiment Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: SentimentFunctionErrorRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Errors
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 5.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ConversionFunctionThrottleRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High throttle rate for Conversion Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: ConversionFunctionThrottleRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Throttles
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref ConversionFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  SentimentFunctionThrottleRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: High throttle rate for Sentiment Function
+      AlarmActions:
+        - Ref: AlarmTopic
+      Metrics:
+        - Id: e1
+          Expression: '(m1/m2) * 100'
+          Label: SentimentFunctionThrottleRate
+        - Id: m1
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Throttles
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+        - Id: m2
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Invocations
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref SentimentFunction
+            Period: 300
+            Stat: Sum
+            Unit: Count
+          ReturnData: false
+      EvaluationPeriods: 1
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  ApplicationDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Ref AWS::StackName
+      DashboardBody: !Sub '{
+        "widgets":
+          [
+            {
+              "type":"metric",
+              "x":0,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/Lambda",
+                    "Invocations",
+                    "FunctionName",
+                    "${ConversionFunction}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Invocations"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":0,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${ConversionFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Error Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ConversionFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Error Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":6,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${ConversionFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Maximum",
+                "region": "${AWS::Region}",
+                "title":"Conversion Function Concurrent Executions"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":6,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${ConversionFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                  [ "...", { "label": "Duration (Max)" } ],
+                  [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Conversion Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 18,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Conversion Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${ConversionFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":18,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/SQS",
+                    "ApproximateNumberOfMessagesVisible",
+                    "QueueName",
+                    "${ConversionDlq.QueueName}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Conversion DLQ Length"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":24,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/Lambda",
+                    "Invocations",
+                    "FunctionName",
+                    "${SentimentFunction}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Invocations"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":24,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${SentimentFunction}", { "id": "m1", "visible": false } ],
+                  [ { "expression": "100*(m1/m2)", "label": "Error Rate", "id": "e1", "region": "${AWS::Region}" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${SentimentFunction}", { "id": "m2", "visible": false } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Error Rate"
+              }
+            },
+            {
+              "type":"metric",
+              "x":0,
+              "y":36,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "ConcurrentExecutions", "FunctionName", "${SentimentFunction}", { "stat": "Average" } ],
+                  [ "...", { "stat": "Maximum" } ],
+                  [ "...", { "stat": "Minimum", "label": "ConcurrentExecutions (minimum)" } ],
+                  [ "...", { "stat": "p90", "label": "ConcurrentExecutions (p90)"} ],
+                  [ "...", { "stat": "p95", "label": "ConcurrentExecutions (p95)"} ],
+                  [ "...", { "stat": "p99", "label": "ConcurrentExecutions (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Maximum",
+                "region": "${AWS::Region}",
+                "title":"Sentiment Function Concurrent Executions"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":36,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${SentimentFunction}", { "label": "Duration (Avg)", "stat": "Average" } ],
+                    [ "...", { "label": "Duration (Max)" } ],
+                    [ "...", { "stat": "p99", "label": "Duration (p99)" } ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title": "Sentiment Function Duration"
+              }
+            },
+            {
+              "type":"metric",
+              "x": 0,
+              "y": 42,
+              "width": 12,
+              "height": 6,
+              "properties":{
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Sentiment Function Throttles",
+                "metrics":[
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${SentimentFunction}" ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type":"metric",
+              "x":12,
+              "y":42,
+              "width":12,
+              "height":6,
+              "properties":{
+                "metrics":[
+                  [
+                    "AWS/SQS",
+                    "ApproximateNumberOfMessagesVisible",
+                    "QueueName",
+                    "${SentimentDlq.QueueName}"
+                  ]
+                ],
+                "period":60,
+                "stat":"Sum",
+                "region": "${AWS::Region}",
+                "title":"Sentiment DLQ Length"
+              }
+            },
+            {
+              "type": "text",
+              "x": 0,
+              "y": 48,
+              "width": 24,
+              "height": 1,
+              "properties": {
+                  "markdown": "\n# Alarms"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "ConversionDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${ConversionDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 49,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                  "title": "SentimentDlq Alarm",
+                  "annotations": {
+                      "alarms": [
+                          "${SentimentDlqAlarm.Arn}"
+                      ]
+                  },
+                  "view": "timeSeries",
+                  "stacked": false
+              }
+            }
+          ]
+        }'
+
+Outputs:
+  Dashboard:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub "https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ApplicationDashboard}"
