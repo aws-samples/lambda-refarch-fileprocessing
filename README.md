@@ -1,22 +1,32 @@
 # Serverless Reference Architecture: Real-time File Processing
 
-The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses [AWS Lambda](https://aws.amazon.com/lambda). This architecture is ideal for workloads that need more than one data derivative of an object. 
+The Real-time File Processing reference architecture is a general-purpose, event-driven, parallel data processing architecture that uses 
+[![AWS Lambda](https://aws.amazon.com/lambda)
+This architecture is ideal for workloads that need more than one data derivative of an object. 
 
 In this example application, we deliver notes from an interview in Markdown format to S3.  S3 Events are used to trigger multiple processing flows - one to convert and persist Markdown files to HTML and another to detect and persist sentiment.
 
 ## Architectural Diagram
 
-![Reference Architecture - Real-time File Processing](img/lambda-refarch-fileprocessing-simple.png)
+[![Reference Architecture - Real-time File Processing](img/lambda-refarch-fileprocessing-simple.png)
 
 ## Application Components
 
 ### Event Trigger
 
-In this architecture, individual files are processed as they arrive. To achive this, we utilize [AWS S3 Events](https://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html) and [Amazon Simple Notification Service](https://docs.aws.amazon.com/sns/latest/dg/welcome.html). When an object is created in S3, an event is emitted to a SNS topic. We deliver our event to 2 seperate [SQS Queues](https://aws.amazon.com/sqs/), representing 2 different workflows. Refer to [What is Amazon Simple Notification Service?](https://docs.aws.amazon.com/sns/latest/dg/welcome.html) for more information about eligible targets.
+In this architecture, individual files are processed as they arrive. To achive this, we utilize 
+[![AWS S3 Events](https://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html) and 
+[![Amazon Simple Notification Service](https://docs.aws.amazon.com/sns/latest/dg/welcome.html)
+When an object is created in S3, an event is 
+emitted to a SNS topic. We deliver our event to 2 seperate 
+[![SQS Queues](https://aws.amazon.com/sqs/) representing 2 different workflows. Refer to 
+[![What is Amazon Simple Notification Service?](https://docs.aws.amazon.com/sns/latest/dg/welcome.html) for more information about eligible targets)
 
 ### Conversion Workflow
 
-Our function will take Markdown files stored in our **InputBucket**, convert them to HTML, and store them in our **OutputBucket**.  The **ConversionQueue** SQS queue captures the S3 Event JSON payload, allowing for more control of our **ConversionFunction** and better error handling.  Refer to [Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html) for more details.
+Our function will take Markdown files stored in our **InputBucket**, convert them to HTML, and store them in our **OutputBucket**.  The **ConversionQueue** SQS queue captures the S3 Event JSON payload, allowing for more control of our **ConversionFunction** and better error handling.  Refer to 
+[![Using AWS Lambda with Amazon SQS](https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+for more details.
 
 If our **ConversionFunction** cannot remove the messages from the **ConversionQueue**, they are sent to **ConversionDlq**, a dead-letter queue (DLQ), for inspection. A CloudWatch Alarm is configured to send notification to an email address when there are any messages in the **ConversionDlq**.
 
@@ -24,7 +34,7 @@ If our **ConversionFunction** cannot remove the messages from the **ConversionQu
 
 Our function will take Markdown files stored in our **InputBucket**, detect the overall sentiment for each file, and store the result in our **SentimentTable**.
 
-We are using [Amazon Comprehend](https://aws.amazon.com/comprehend/) to detect overall interview sentiment.  Amazon Comprehend is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
+We are using [![Amazon Comprehend](https://aws.amazon.com/comprehend/) to detect overall interview sentiment.  Amazon Comprehend is a machine learning powered service that makes it easy to find insights and relationships in text. We use the Sentiment Analysis API to understand whether interview responses are positive or negative.
 
 The Sentiment workflow uses the same SQS-to-Lambda Function pattern as the Coversion workflow.
 
